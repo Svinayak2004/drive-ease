@@ -45,7 +45,7 @@ export class MongoDBStorage implements IStorage {
     try {
       if (mongoose.connection.readyState !== 1) {
         // Check if we have a valid MongoDB URI
-        const uri = process.env.MONGODB_URI;
+        const uri = "mongodb+srv://svinayak2004:Suryawanshi%402004@cluster0.lz7si.mongodb.net/car-rental";
         
         // Validate the URI format
         if (uri && !uri.startsWith('mongodb://') && !uri.startsWith('mongodb+srv://')) {
@@ -56,10 +56,7 @@ export class MongoDBStorage implements IStorage {
         
         // Use default local MongoDB if no valid URI is provided
         
-        if (!process.env.MONGODB_URI) {
-          throw new Error('MONGODB_URI is not defined in the environment variables');
-        }
-        await mongoose.connect(process.env.MONGODB_URI);
+        await mongoose.connect('mongodb+srv://svinayak2004:Suryawanshi%402004@cluster0.lz7si.mongodb.net/car-rental');
         console.log('Connected to MongoDB successfully');
         this.connected = true;
         await this.initializeDefaultData();

@@ -10,7 +10,7 @@ export class MongoStorage implements IStorage {
 
   constructor() {
     this.sessionStore = MongoStore.create({
-      mongoUrl: process.env.MONGODB_URI || 'mongodb+srv://svinayak2004:Suryawanshi%402004@cluster0.lz7si.mongodb.net/car-rental',
+      mongoUrl: 'mongodb+srv://svinayak2004:Suryawanshi%402004@cluster0.lz7si.mongodb.net/car-rental',
       collectionName: 'sessions'
     });
   }
@@ -38,7 +38,7 @@ export class MongoStorage implements IStorage {
   async connect(): Promise<void> {
     try {
       if (mongoose.connection.readyState !== 1) {
-        await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/car-rental');
+        await mongoose.connect("mongodb+srv://svinayak2004:Suryawanshi%402004@cluster0.lz7si.mongodb.net/car-rental");
         console.log('Connected to MongoDB database');
       }
     } catch (error) {
