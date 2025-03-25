@@ -1,10 +1,7 @@
 import { type User, type InsertUser, type Vehicle, type InsertVehicle, type Booking, type InsertBooking } from "@shared/schema";
 import session from "express-session";
 import mongoose from 'mongoose';
-import { UserModel, VehicleModel, BookingModel, sessionStore, IUser, IVehicle, IBooking, connectToDatabase } from './db';
-
-// Connect to MongoDB
-connectToDatabase();
+import { UserModel, VehicleModel, BookingModel, sessionStore } from './db';
 
 export interface IStorage {
   // User methods
@@ -32,75 +29,151 @@ export interface IStorage {
   initializeDefaultData(): Promise<void>;
 }
 
+// MongoDB implementation of storage
 export class MongoDBStorage implements IStorage {
   sessionStore: session.Store;
+  connected: boolean = false;
   
   constructor() {
     this.sessionStore = sessionStore;
+    
+    // We'll try connecting to MongoDB
+    this.tryConnect();
+  }
+  
+  private async tryConnect() {
+    try {
+      if (mongoose.connection.readyState !== 1) {
+        await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/car-rental');
+        console.log('Connected to MongoDB successfully');
+        this.connected = true;
+        await this.initializeDefaultData();
+      }
+    } catch (error) {
+      console.error('MongoDB connection failed:', error);
+      this.connected = false;
+    }
+  }
+  
+  // Helper function to safely convert MongoDB document to User
+  private toClientUser(doc: any): User {
+    if (!doc) return doc;
+    const obj = doc.toObject ? doc.toObject() : doc;
+    return {
+      id: obj._id.toString(),
+      username: obj.username,
+      password: obj.password,
+      email: obj.email,
+      firstName: obj.firstName,
+      lastName: obj.lastName,
+      phoneNumber: obj.phoneNumber || null
+    };
+  }
+  
+  // Helper function to safely convert MongoDB document to Vehicle
+  private toClientVehicle(doc: any): Vehicle {
+    if (!doc) return doc;
+    const obj = doc.toObject ? doc.toObject() : doc;
+    return {
+      id: obj._id.toString(),
+      name: obj.name,
+      type: obj.type,
+      pricePerDay: obj.pricePerDay,
+      description: obj.description,
+      imageUrl: obj.imageUrl,
+      available: obj.available
+    };
+  }
+  
+  // Helper function to safely convert MongoDB document to Booking
+  private toClientBooking(doc: any): Booking {
+    if (!doc) return doc;
+    const obj = doc.toObject ? doc.toObject() : doc;
+    return {
+      id: obj._id.toString(),
+      userId: obj.userId.toString(),
+      vehicleId: obj.vehicleId.toString(),
+      startDate: obj.startDate,
+      endDate: obj.endDate,
+      includeDriver: obj.includeDriver,
+      totalPrice: obj.totalPrice,
+      paymentIntentId: obj.paymentIntentId,
+      status: obj.status,
+      createdAt: obj.createdAt
+    };
   }
 
   // Initialize default data (vehicles)
   async initializeDefaultData(): Promise<void> {
-    // Check if vehicles already exist
-    const vehicleCount = await VehicleModel.countDocuments();
-    if (vehicleCount === 0) {
-      console.log('Initializing default vehicles...');
-      const defaultVehicles: InsertVehicle[] = [
-        {
-          name: 'Toyota Corolla',
-          type: 'car',
-          pricePerDay: "25",
-          description: 'Comfortable sedan perfect for city driving and short trips.',
-          imageUrl: 'https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80',
-          available: true
-        },
-        {
-          name: 'Honda Civic',
-          type: 'car',
-          pricePerDay: "28",
-          description: 'Reliable and fuel-efficient compact car for everyday use.',
-          imageUrl: 'https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80',
-          available: true
-        },
-        {
-          name: 'Mountain Bike',
-          type: 'bike',
-          pricePerDay: "10",
-          description: 'Perfect for trails and outdoor adventures.',
-          imageUrl: 'https://images.unsplash.com/photo-1558981403-c5f9c76792fa?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80',
-          available: true
-        },
-        {
-          name: 'City Cruiser Bike',
-          type: 'bike',
-          pricePerDay: "8",
-          description: 'Comfortable bike for casual city rides.',
-          imageUrl: 'https://images.unsplash.com/photo-1485965120184-e220f721d03e?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80',
-          available: true
-        },
-        {
-          name: 'Mini Bus (15 seats)',
-          type: 'bus',
-          pricePerDay: "85",
-          description: 'Perfect for small group trips and events.',
-          imageUrl: 'https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80',
-          available: true
-        },
-        {
-          name: 'Shuttle Bus (25 seats)',
-          type: 'bus',
-          pricePerDay: "120",
-          description: 'Ideal for larger groups and campus events.',
-          imageUrl: 'https://images.unsplash.com/photo-1570125909232-eb263c188f7e?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80',
-          available: true
-        }
-      ];
+    if (!this.connected) {
+      console.log('MongoDB not connected, skipping default data initialization');
+      return;
+    }
+    
+    try {
+      // Check if vehicles already exist
+      const vehicleCount = await VehicleModel.countDocuments();
+      if (vehicleCount === 0) {
+        console.log('Initializing default vehicles...');
+        const defaultVehicles: InsertVehicle[] = [
+          {
+            name: 'Toyota Corolla',
+            type: 'car',
+            pricePerDay: "25",
+            description: 'Comfortable sedan perfect for city driving and short trips.',
+            imageUrl: 'https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80',
+            available: true
+          },
+          {
+            name: 'Honda Civic',
+            type: 'car',
+            pricePerDay: "28",
+            description: 'Reliable and fuel-efficient compact car for everyday use.',
+            imageUrl: 'https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80',
+            available: true
+          },
+          {
+            name: 'Mountain Bike',
+            type: 'bike',
+            pricePerDay: "10",
+            description: 'Perfect for trails and outdoor adventures.',
+            imageUrl: 'https://images.unsplash.com/photo-1558981403-c5f9c76792fa?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80',
+            available: true
+          },
+          {
+            name: 'City Cruiser Bike',
+            type: 'bike',
+            pricePerDay: "8",
+            description: 'Comfortable bike for casual city rides.',
+            imageUrl: 'https://images.unsplash.com/photo-1485965120184-e220f721d03e?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80',
+            available: true
+          },
+          {
+            name: 'Mini Bus (15 seats)',
+            type: 'bus',
+            pricePerDay: "85",
+            description: 'Perfect for small group trips and events.',
+            imageUrl: 'https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80',
+            available: true
+          },
+          {
+            name: 'Shuttle Bus (25 seats)',
+            type: 'bus',
+            pricePerDay: "120",
+            description: 'Ideal for larger groups and campus events.',
+            imageUrl: 'https://images.unsplash.com/photo-1570125909232-eb263c188f7e?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80',
+            available: true
+          }
+        ];
 
-      // Create the default vehicles
-      for (const vehicle of defaultVehicles) {
-        await this.createVehicle(vehicle);
+        for (const vehicle of defaultVehicles) {
+          const newVehicle = new VehicleModel(vehicle);
+          await newVehicle.save();
+        }
+        console.log('Default vehicles created successfully');
       }
-      console.log('Default vehicles created successfully');
+    } catch (error) {
+      console.error('Error initializing default data:', error);
     }
   }
 

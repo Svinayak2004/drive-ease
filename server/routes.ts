@@ -63,7 +63,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
     
     try {
-      const id = parseInt(req.params.id);
+      const id = req.params.id;
       const booking = await storage.getBooking(id);
       
       if (!booking) {
@@ -104,7 +104,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Format booking data for API
       const bookingData = {
         userId: req.user.id,
-        vehicleId: parseInt(req.body.vehicleId),
+        vehicleId: req.body.vehicleId,
         startDate: new Date(req.body.startDate),
         endDate: new Date(req.body.endDate),
         includeDriver: includeDriver,

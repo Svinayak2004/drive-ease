@@ -15,9 +15,19 @@ export async function connectToDatabase() {
   try {
     await mongoose.connect(MONGODB_URI);
     console.log('🚀 Connected to MongoDB');
+    return true;
   } catch (error) {
     console.error('❌ MongoDB connection error:', error);
-    process.exit(1);
+    
+    // Instead of exiting, we'll allow the app to continue with in-memory functionality
+    if (MONGODB_URI === 'mongodb://localhost:27017/car-rental-dev') {
+      console.log('Using in-memory storage instead of MongoDB');
+      return false;
+    }
+    
+    // Only exit if we're trying to use a real MongoDB connection
+    console.log('MongoDB connection failed. Setting up application with in-memory database.');
+    return false;
   }
 }
 
