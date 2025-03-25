@@ -18,8 +18,16 @@ export default function VehicleDetailsPage() {
   const [authModalOpen, setAuthModalOpen] = useState(false);
 
   // Fetch vehicle details
-  const { data: vehicle, isLoading, error } = useQuery<Vehicle>({
+  const { data: vehicle, isLoading, error } =  useQuery<Vehicle>({
     queryKey: [`/api/vehicles/${id}`],
+    queryFn: async () => {
+      const response = await fetch(`/api/vehicles/${id}`);
+      if (!response.ok) {
+        throw new Error("Failed to fetch vehicle details");
+      }
+      const data = response.json();
+      return data;
+    },
   });
 
   const handleBookNow = () => {
@@ -92,7 +100,7 @@ export default function VehicleDetailsPage() {
                 />
                 <div className="mt-4 flex flex-wrap gap-2">
                   <Badge variant="outline" className="capitalize">{vehicle.type}</Badge>
-                  <Badge variant={vehicle.available ? "success" : "destructive"}>
+                  <Badge variant={vehicle.available ? "default" : "destructive"}>
                     {vehicle.available ? "Available" : "Unavailable"}
                   </Badge>
                 </div>

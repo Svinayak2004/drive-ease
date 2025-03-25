@@ -130,7 +130,7 @@ export default function HomePage() {
                 <div className="p-6">
                   <h3 className="text-xl font-bold mb-2">Cars</h3>
                   <p className="text-gray-600 mb-4">Comfortable sedans and hatchbacks perfect for city driving and short trips.</p>
-                  <p className="text-primary font-semibold mb-4">Starting from $25/day</p>
+                  <p className="text-primary font-semibold mb-4">Starting from ₹2500/day</p>
                   <Button 
                     asChild 
                     className="w-full bg-primary hover:bg-primary/90"
@@ -144,14 +144,14 @@ export default function HomePage() {
               
               <div className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow duration-300">
                 <img 
-                  src="https://images.unsplash.com/photo-1558981403-c5f9c76792fa?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80" 
+                  src="https://images.unsplash.com/photo-1622185135505-2d795003994a?q=80&w=2070&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D" 
                   alt="Bikes" 
                   className="w-full h-48 object-cover" 
                 />
                 <div className="p-6">
                   <h3 className="text-xl font-bold mb-2">Bikes</h3>
                   <p className="text-gray-600 mb-4">Eco-friendly and budget options for solo travelers and adventure seekers.</p>
-                  <p className="text-primary font-semibold mb-4">Starting from $10/day</p>
+                  <p className="text-primary font-semibold mb-4">Starting from ₹1500/day</p>
                   <Button 
                     asChild 
                     className="w-full bg-primary hover:bg-primary/90"
@@ -172,7 +172,7 @@ export default function HomePage() {
                 <div className="p-6">
                   <h3 className="text-xl font-bold mb-2">Buses</h3>
                   <p className="text-gray-600 mb-4">Perfect for group trips, events, and large gatherings of students.</p>
-                  <p className="text-primary font-semibold mb-4">Starting from $85/day</p>
+                  <p className="text-primary font-semibold mb-4">Starting from ₹9999/day</p>
                   <Button 
                     asChild 
                     className="w-full bg-primary hover:bg-primary/90"

@@ -2,7 +2,7 @@ import mongoose from 'mongoose';
 
 // MongoDB connection string - using MongoDB Atlas free tier
 // Replace this with your own MongoDB URI when in production
-let MONGODB_URI = process.env.MONGODB_URI;
+let MONGODB_URI = "mongodb+srv://svinayak2004:Suryawanshi%402004@cluster0.lz7si.mongodb.net/car-rental";
 
 // If no valid URI is provided, use a fallback for development
 if (!MONGODB_URI || !MONGODB_URI.startsWith('mongodb')) {
@@ -20,7 +20,7 @@ export async function connectToDatabase() {
     console.error('❌ MongoDB connection error:', error);
     
     // Instead of exiting, we'll allow the app to continue with in-memory functionality
-    if (MONGODB_URI === 'mongodb://localhost:27017/car-rental-dev') {
+    if (MONGODB_URI === 'mongodb+srv://svinayak2004:Suryawanshi%402004@cluster0.lz7si.mongodb.net/car-rental') {
       console.log('Using in-memory storage instead of MongoDB');
       return false;
     }

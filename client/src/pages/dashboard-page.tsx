@@ -4,7 +4,7 @@ import { useLocation } from "wouter";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
@@ -12,6 +12,22 @@ import { Loader2, Calendar, Clock, MapPin, CarFront, User, CalendarDays } from "
 import { Vehicle, Booking } from "@shared/schema";
 import { format, isPast, isFuture, isToday } from "date-fns";
 import { useAuth } from "@/hooks/use-auth";
+import { apiRequest } from "@/lib/queryClient";
+
+// Custom hook for fetching vehicle details
+const useVehicle = (vehicleId: string) => {
+  return useQuery<Vehicle>({
+    queryKey: [`/api/vehicles/${vehicleId}`],
+    queryFn: async () => {
+      const response = await apiRequest("GET", `/api/vehicles/${vehicleId}`);
+      if (!response.ok) {
+        throw new Error("Failed to fetch vehicle");
+      }
+      return response.json();
+    },
+    enabled: !!vehicleId,
+  });
+};
 
 export default function DashboardPage() {
   const { user } = useAuth();
@@ -21,14 +37,14 @@ export default function DashboardPage() {
   // Fetch user's bookings
   const { data: bookings, isLoading: bookingsLoading } = useQuery<Booking[]>({
     queryKey: ["/api/bookings"],
+    queryFn: async () => {
+      const response = await apiRequest("GET", "/api/bookings");
+      if (!response.ok) {
+        throw new Error("Failed to fetch bookings");
+      }
+      return response.json();
+    },
   });
-
-  // Helper function to get vehicle for a booking
-  const useVehicle = (vehicleId: number) => {
-    return useQuery<Vehicle>({
-      queryKey: [`/api/vehicles/${vehicleId}`],
-    });
-  };
 
   if (bookingsLoading) {
     return (
@@ -123,18 +139,13 @@ export default function DashboardPage() {
                     </div>
                   ) : (
                     <div className="space-y-6">
-                      {upcomingBookings.map(booking => {
-                        const { data: vehicle } = useVehicle(booking.vehicleId);
-                        
-                        return (
-                          <BookingCard 
-                            key={booking.id} 
-                            booking={booking} 
-                            vehicle={vehicle} 
-                            isUpcoming={true}
-                          />
-                        );
-                      })}
+                      {upcomingBookings.map(booking => (
+                        <BookingCardWithVehicle 
+                          key={booking.id} 
+                          booking={booking} 
+                          isUpcoming={true}
+                        />
+                      ))}
                     </div>
                   )}
                 </TabsContent>
@@ -150,18 +161,13 @@ export default function DashboardPage() {
                     </div>
                   ) : (
                     <div className="space-y-6">
-                      {pastBookings.map(booking => {
-                        const { data: vehicle } = useVehicle(booking.vehicleId);
-                        
-                        return (
-                          <BookingCard 
-                            key={booking.id} 
-                            booking={booking} 
-                            vehicle={vehicle} 
-                            isUpcoming={false}
-                          />
-                        );
-                      })}
+                      {pastBookings.map(booking => (
+                        <BookingCardWithVehicle 
+                          key={booking.id} 
+                          booking={booking} 
+                          isUpcoming={false}
+                        />
+                      ))}
                     </div>
                   )}
                 </TabsContent>
@@ -176,16 +182,11 @@ export default function DashboardPage() {
   );
 }
 
-interface BookingCardProps {
-  booking: Booking;
-  vehicle?: Vehicle;
-  isUpcoming: boolean;
-}
-
-function BookingCard({ booking, vehicle, isUpcoming }: BookingCardProps) {
-  const [_, navigate] = useLocation();
+// Separate component to handle vehicle fetching
+function BookingCardWithVehicle({ booking, isUpcoming }: { booking: Booking; isUpcoming: boolean }) {
+  const { data: vehicle, isLoading } = useVehicle(booking.vehicleId.toString());
   
-  if (!vehicle) {
+  if (isLoading) {
     return (
       <Card>
         <CardContent className="p-4">
@@ -196,22 +197,40 @@ function BookingCard({ booking, vehicle, isUpcoming }: BookingCardProps) {
       </Card>
     );
   }
+
+  return (
+    <BookingCard 
+      booking={booking} 
+      vehicle={vehicle} 
+      isUpcoming={isUpcoming} 
+    />
+  );
+}
+
+interface BookingCardProps {
+  booking: Booking;
+  vehicle?: Vehicle;
+  isUpcoming: boolean;
+}
+
+function BookingCard({ booking, vehicle, isUpcoming }: BookingCardProps) {
+  const [_, navigate] = useLocation();
   
   return (
     <Card className="overflow-hidden">
       <div className="sm:flex">
         <div className="sm:w-1/3 h-48 sm:h-auto">
           <img 
-            src={vehicle.imageUrl} 
-            alt={vehicle.name} 
+            src={vehicle?.imageUrl || "/placeholder-car.jpg"} 
+            alt={vehicle?.name || "Vehicle"} 
             className="w-full h-full object-cover"
           />
         </div>
         <div className="p-5 sm:w-2/3">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4">
             <div>
-              <h3 className="text-lg font-bold">{vehicle.name}</h3>
-              <p className="text-gray-500 capitalize">{vehicle.type}</p>
+              <h3 className="text-lg font-bold">{vehicle?.name || "Unknown Vehicle"}</h3>
+              <p className="text-gray-500 capitalize">{vehicle?.type || "Unknown type"}</p>
             </div>
             <Badge className={isUpcoming ? "bg-green-500" : "bg-gray-500"}>
               {booking.status}
@@ -243,7 +262,7 @@ function BookingCard({ booking, vehicle, isUpcoming }: BookingCardProps) {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-gray-500">Total Price</p>
-              <p className="text-lg font-bold text-primary">${Number(booking.totalPrice).toFixed(2)}</p>
+              <p className="text-lg font-bold text-primary">₹{Number(booking.totalPrice).toFixed(2)}</p>
             </div>
             
             {isUpcoming && (
@@ -258,7 +277,7 @@ function BookingCard({ booking, vehicle, isUpcoming }: BookingCardProps) {
             {!isUpcoming && (
               <Button
                 variant="outline"
-                onClick={() => navigate(`/vehicles/${vehicle.id}`)}
+                onClick={() => navigate(`/vehicles/${vehicle?.id}`)}
               >
                 Book Again
               </Button>

@@ -8,7 +8,7 @@ import Stripe from "stripe";
 // Initialize Stripe
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY || "sk_test_your_test_key";
 const stripe = new Stripe(stripeSecretKey, {
-  apiVersion: "2023-10-16",
+  apiVersion: "2025-02-24.acacia",
 });
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -143,7 +143,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { bookingId } = req.body;
       
       // Get booking details
-      const booking = await storage.getBooking(parseInt(bookingId));
+      const booking = await storage.getBooking((bookingId));
       if (!booking) {
         return res.status(404).json({ message: "Booking not found" });
       }
@@ -180,7 +180,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     
     try {
       const bookingId = parseInt(req.params.id);
-      const booking = await storage.getBooking(bookingId);
+      const booking = await storage.getBooking(bookingId.toString());
       
       if (!booking) {
         return res.status(404).json({ message: "Booking not found" });
@@ -192,7 +192,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Update booking status to confirmed
-      const updatedBooking = await storage.updateBookingStatus(bookingId, "confirmed");
+      const updatedBooking = await storage.updateBookingStatus(bookingId.toString(), "confirmed");
       
       // Update vehicle availability to false
       await storage.updateVehicleAvailability(booking.vehicleId, false);

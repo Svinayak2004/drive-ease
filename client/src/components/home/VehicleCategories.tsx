@@ -5,7 +5,7 @@ const categories = [
   {
     title: "Cars",
     description: "From compact to luxury, find the perfect car for your needs",
-    price: "$25/day",
+    price: "₹25/day",
     icon: Car,
     image: "https://images.unsplash.com/photo-1494976388531-d1058494cdd8?ixlib=rb-1.2.1&auto=format&fit=crop&w=500&h=300&q=80",
     link: "/vehicles?type=car"
@@ -13,7 +13,7 @@ const categories = [
   {
     title: "Bikes",
     description: "Explore the city on two wheels with our range of bikes",
-    price: "$10/day",
+    price: "₹10/day",
     icon: Bike,
     image: "https://images.unsplash.com/photo-1558980394-0a06c4631733?ixlib=rb-1.2.1&auto=format&fit=crop&w=500&h=300&q=80",
     link: "/vehicles?type=bike"
@@ -21,7 +21,7 @@ const categories = [
   {
     title: "Buses",
     description: "Perfect for group outings and special events",
-    price: "$80/day",
+    price: "r80/day",
     icon: Bus,
     image: "https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?ixlib=rb-1.2.1&auto=format&fit=crop&w=500&h=300&q=80",
     link: "/vehicles?type=bus"

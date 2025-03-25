@@ -136,7 +136,7 @@ export default function VehiclesPage() {
                         <CardTitle>{vehicle.name}</CardTitle>
                         <CardDescription className="capitalize">{vehicle.type}</CardDescription>
                       </div>
-                      <div className="text-primary font-bold">${Number(vehicle.pricePerDay)}/day</div>
+                      <div className="text-primary font-bold">₹{Number(vehicle.pricePerDay)}/day</div>
                     </div>
                   </CardHeader>
                   <CardContent>

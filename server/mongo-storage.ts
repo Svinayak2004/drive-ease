@@ -10,7 +10,7 @@ export class MongoStorage implements IStorage {
 
   constructor() {
     this.sessionStore = MongoStore.create({
-      mongoUrl: process.env.MONGODB_URI || 'mongodb://localhost:27017/car-rental',
+      mongoUrl: process.env.MONGODB_URI || 'mongodb+srv://svinayak2004:Suryawanshi%402004@cluster0.lz7si.mongodb.net/car-rental',
       collectionName: 'sessions'
     });
   }
@@ -48,7 +48,7 @@ export class MongoStorage implements IStorage {
   }
 
   // User methods
-  async getUser(id: number): Promise<User | undefined> {
+  async getUser(id: string): Promise<User | undefined> {
     await this.connect();
     try {
       const user = await UserModel.findById(id);
@@ -98,10 +98,10 @@ export class MongoStorage implements IStorage {
   }
 
   // Vehicle methods
-  async getVehicle(id: number): Promise<Vehicle | undefined> {
+  async getVehicle(id: string): Promise<Vehicle | undefined> {
     await this.connect();
     try {
-      const vehicle = await VehicleModel.findById(id);
+      const vehicle = await VehicleModel.findById(new mongoose.Types.ObjectId(id));
       return vehicle ? this.toClientVehicle(vehicle) : undefined;
     } catch (error) {
       console.error('Error getting vehicle:', error);
