@@ -135,17 +135,20 @@ export function setupAuth(app: Express) {
 
   // Login endpoint
   app.post("/api/login", (req, res, next) => {
-    passport.authenticate("local", (err, user, info) => {
+    passport.authenticate(
+      "local",
+      (err: any, user: Express.User | false, info: { message?: string } | undefined) => {
       if (err) return next(err);
       if (!user) {
         return res.status(401).json({ message: info?.message || "Login failed" });
       }
-      req.login(user, (err) => {
+      req.login(user, (err: any) => {
         if (err) return next(err);
         const { password, ...userWithoutPassword } = user;
         return res.json(userWithoutPassword);
       });
-    })(req, res, next);
+      }
+    )(req, res, next);
   });
 
   // Logout endpoint

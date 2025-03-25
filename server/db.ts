@@ -1,5 +1,5 @@
 import mongoose from 'mongoose';
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://svinayak2004:Suryawanshi%402004@cluster0.lz7si.mongodb.net/car-rental?retryWrites=true&w=majority';
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://svinayak2004:Suryawanshi%402004@cluster0.lz7si.mongodb.net/car-rental';
 
 // Connection caching for serverless environments
 let cached = (global as any).mongoose;
