@@ -58,7 +58,7 @@ export class MemStorage implements IStorage {
       {
         name: 'Toyota Corolla',
         type: 'car',
-        pricePerDay: 25,
+        pricePerDay: "25",
         description: 'Comfortable sedan perfect for city driving and short trips.',
         imageUrl: 'https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80',
         available: true
@@ -66,7 +66,7 @@ export class MemStorage implements IStorage {
       {
         name: 'Honda Civic',
         type: 'car',
-        pricePerDay: 28,
+        pricePerDay: "28",
         description: 'Reliable and fuel-efficient compact car for everyday use.',
         imageUrl: 'https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80',
         available: true
@@ -74,7 +74,7 @@ export class MemStorage implements IStorage {
       {
         name: 'Mountain Bike',
         type: 'bike',
-        pricePerDay: 10,
+        pricePerDay: "10",
         description: 'Perfect for trails and outdoor adventures.',
         imageUrl: 'https://images.unsplash.com/photo-1558981403-c5f9c76792fa?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80',
         available: true
@@ -82,7 +82,7 @@ export class MemStorage implements IStorage {
       {
         name: 'City Cruiser Bike',
         type: 'bike',
-        pricePerDay: 8,
+        pricePerDay: "8",
         description: 'Comfortable bike for casual city rides.',
         imageUrl: 'https://images.unsplash.com/photo-1485965120184-e220f721d03e?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80',
         available: true
@@ -90,7 +90,7 @@ export class MemStorage implements IStorage {
       {
         name: 'Mini Bus (15 seats)',
         type: 'bus',
-        pricePerDay: 85,
+        pricePerDay: "85",
         description: 'Perfect for small group trips and events.',
         imageUrl: 'https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80',
         available: true
@@ -98,7 +98,7 @@ export class MemStorage implements IStorage {
       {
         name: 'Shuttle Bus (25 seats)',
         type: 'bus',
-        pricePerDay: 120,
+        pricePerDay: "120",
         description: 'Ideal for larger groups and campus events.',
         imageUrl: 'https://images.unsplash.com/photo-1570125909232-eb263c188f7e?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80',
         available: true
@@ -127,7 +127,12 @@ export class MemStorage implements IStorage {
 
   async createUser(insertUser: InsertUser): Promise<User> {
     const id = this.userIdCounter++;
-    const user: User = { ...insertUser, id };
+    // Ensure phoneNumber is always a string or null, not undefined
+    const user: User = { 
+      ...insertUser, 
+      id,
+      phoneNumber: insertUser.phoneNumber || null 
+    };
     this.users.set(id, user);
     return user;
   }
@@ -147,7 +152,12 @@ export class MemStorage implements IStorage {
   
   async createVehicle(insertVehicle: InsertVehicle): Promise<Vehicle> {
     const id = this.vehicleIdCounter++;
-    const vehicle: Vehicle = { ...insertVehicle, id };
+    // Ensure that available is always a boolean
+    const vehicle: Vehicle = { 
+      ...insertVehicle, 
+      id,
+      available: insertVehicle.available === undefined ? true : Boolean(insertVehicle.available)
+    };
     this.vehicles.set(id, vehicle);
     return vehicle;
   }
@@ -175,13 +185,26 @@ export class MemStorage implements IStorage {
   async createBooking(insertBooking: InsertBooking): Promise<Booking> {
     const id = this.bookingIdCounter++;
     const now = new Date();
+    
+    // Create booking with explicit type conversion to ensure proper types
     const booking: Booking = { 
-      ...insertBooking, 
       id, 
+      userId: Number(insertBooking.userId),
+      vehicleId: Number(insertBooking.vehicleId),
+      startDate: insertBooking.startDate instanceof Date 
+        ? insertBooking.startDate 
+        : new Date(insertBooking.startDate),
+      endDate: insertBooking.endDate instanceof Date 
+        ? insertBooking.endDate 
+        : new Date(insertBooking.endDate),
+      includeDriver: insertBooking.includeDriver === true,
+      totalPrice: String(insertBooking.totalPrice),
       paymentIntentId: null, 
       status: 'pending',
       createdAt: now
     };
+    
+    console.log("Creating booking in storage:", booking);
     this.bookings.set(id, booking);
     return booking;
   }
