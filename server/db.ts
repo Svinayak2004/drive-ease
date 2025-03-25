@@ -7,7 +7,7 @@ let MONGODB_URI = "mongodb+srv://svinayak2004:Suryawanshi%402004@cluster0.lz7si.
 // If no valid URI is provided, use a fallback for development
 if (!MONGODB_URI || !MONGODB_URI.startsWith('mongodb')) {
   console.warn('No valid MongoDB URI provided. Using in-memory MongoDB for development.');
-  MONGODB_URI = 'mongodb://localhost:27017/car-rental-dev';
+  MONGODB_URI = 'mongodb+srv://svinayak2004:Suryawanshi%402004@cluster0.lz7si.mongodb.net/car-rental';
 }
 
 // Create a MongoDB connection
