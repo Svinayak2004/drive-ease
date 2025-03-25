@@ -1,12 +1,13 @@
-# render.yaml
+# render.yaml - Corrected version for Vehicle Voyage deployment
 
 # Database service (MongoDB)
 databases:
   - name: vehiclevoyage-mongodb
     databaseName: vehiclevoyage
-    user: vehiclevoyage-user
+    user: vehiclevoyage_admin  # Changed to valid MongoDB username format
     plan: free
- 
+    ipAllowList:
+      - 0.0.0.0/0
 
 # Backend service (Node.js/Express)
 services:
@@ -32,15 +33,13 @@ services:
         value: 2sf9YA2E99M0XigSH2GaAtwL
     healthCheckPath: /api/health
 
-# Frontend service (Vite/React)
-  - type: web
+# Frontend service (Vite/React) - Updated to static site configuration
+  - type: static_site  # Changed from 'web' to 'static_site'
     name: vehiclevoyage-frontend
-    env: node
     plan: free
     region: singapore # should match backend region
     buildCommand: npm install && npm run build
-    startCommand: npm run preview
-    staticPublishPath: ./dist
+    staticPublishPath: ./dist  # Now valid for static_site type
     envVars:
       - key: VITE_API_BASE_URL
         value: https://vehiclevoyage-backend.onrender.com
