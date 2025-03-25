@@ -1,39 +1,32 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
-import { setupAuth } from "./auth";
 import { storage } from "./storage";
+import { setupAuth } from "./auth";
+import { insertBookingSchema } from "@shared/schema";
 import Stripe from "stripe";
 
-if (!process.env.STRIPE_SECRET_KEY) {
-  console.warn("Warning: No Stripe secret key provided. Using test mode.");
-}
-
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "sk_test_example", {
+// Initialize Stripe
+const stripeSecretKey = process.env.STRIPE_SECRET_KEY || "sk_test_your_test_key";
+const stripe = new Stripe(stripeSecretKey, {
   apiVersion: "2023-10-16",
 });
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Setup authentication routes
+  // Setup auth routes
   setupAuth(app);
 
-  // Vehicle routes
+  // Get all vehicles or filter by type
   app.get("/api/vehicles", async (req, res) => {
     try {
       const type = req.query.type as string | undefined;
-      let vehicles;
-      
-      if (type && ["car", "bike", "bus"].includes(type)) {
-        vehicles = await storage.getVehiclesByType(type);
-      } else {
-        vehicles = await storage.getVehicles();
-      }
-      
+      const vehicles = await storage.getVehicles(type);
       res.json(vehicles);
     } catch (error) {
       res.status(500).json({ message: "Error fetching vehicles" });
     }
   });
 
+  // Get a specific vehicle by ID
   app.get("/api/vehicles/:id", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
@@ -49,38 +42,66 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Booking routes
-  app.post("/api/bookings", async (req, res) => {
+  // Get user's bookings
+  app.get("/api/bookings", async (req, res) => {
     if (!req.isAuthenticated()) {
-      return res.status(401).json({ message: "Authentication required" });
+      return res.status(401).json({ message: "Not authenticated" });
     }
     
     try {
-      const { vehicleId, startDate, endDate, withDriver, totalPrice } = req.body;
+      const bookings = await storage.getBookingsByUser(req.user.id);
+      res.json(bookings);
+    } catch (error) {
+      res.status(500).json({ message: "Error fetching bookings" });
+    }
+  });
+
+  // Get a specific booking
+  app.get("/api/bookings/:id", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Not authenticated" });
+    }
+    
+    try {
+      const id = parseInt(req.params.id);
+      const booking = await storage.getBooking(id);
       
-      // Check if vehicle exists and is available
-      const vehicle = await storage.getVehicle(parseInt(vehicleId));
-      if (!vehicle) {
-        return res.status(404).json({ message: "Vehicle not found" });
+      if (!booking) {
+        return res.status(404).json({ message: "Booking not found" });
       }
       
-      if (!vehicle.available) {
-        return res.status(400).json({ message: "Vehicle is not available" });
+      // Check if booking belongs to current user
+      if (booking.userId !== req.user.id) {
+        return res.status(403).json({ message: "Unauthorized access to booking" });
+      }
+      
+      res.json(booking);
+    } catch (error) {
+      res.status(500).json({ message: "Error fetching booking" });
+    }
+  });
+
+  // Create a new booking
+  app.post("/api/bookings", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Not authenticated" });
+    }
+    
+    try {
+      // Validate booking data
+      const bookingData = insertBookingSchema.parse({
+        ...req.body,
+        userId: req.user.id,
+      });
+      
+      // Check if vehicle exists and is available
+      const vehicle = await storage.getVehicle(bookingData.vehicleId);
+      if (!vehicle || !vehicle.available) {
+        return res.status(400).json({ message: "Vehicle not available" });
       }
       
       // Create booking
-      const booking = await storage.createBooking({
-        userId: req.user.id,
-        vehicleId: parseInt(vehicleId),
-        startDate: new Date(startDate),
-        endDate: new Date(endDate),
-        withDriver: withDriver === true,
-        totalPrice,
-        status: "pending"
-      });
-      
-      // Update vehicle availability
-      await storage.updateVehicleAvailability(parseInt(vehicleId), false);
+      const booking = await storage.createBooking(bookingData);
       
       res.status(201).json(booking);
     } catch (error) {
@@ -88,78 +109,73 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/bookings", async (req, res) => {
+  // Create payment intent
+  app.post("/api/create-payment-intent", async (req, res) => {
     if (!req.isAuthenticated()) {
-      return res.status(401).json({ message: "Authentication required" });
+      return res.status(401).json({ message: "Not authenticated" });
     }
     
     try {
-      const bookings = await storage.getBookingsByUser(req.user.id);
+      const { bookingId } = req.body;
       
-      // Get vehicle details for each booking
-      const bookingsWithVehicles = await Promise.all(
-        bookings.map(async (booking) => {
-          const vehicle = await storage.getVehicle(booking.vehicleId);
-          return {
-            ...booking,
-            vehicle
-          };
-        })
-      );
-      
-      res.json(bookingsWithVehicles);
-    } catch (error) {
-      res.status(500).json({ message: "Error fetching bookings" });
-    }
-  });
-
-  // Payment route
-  app.post("/api/create-payment-intent", async (req, res) => {
-    try {
-      const { amount, bookingId } = req.body;
-      
-      if (!req.isAuthenticated()) {
-        return res.status(401).json({ message: "Authentication required" });
+      // Get booking details
+      const booking = await storage.getBooking(parseInt(bookingId));
+      if (!booking) {
+        return res.status(404).json({ message: "Booking not found" });
       }
       
+      // Check if booking belongs to current user
+      if (booking.userId !== req.user.id) {
+        return res.status(403).json({ message: "Unauthorized access to booking" });
+      }
+      
+      // Create payment intent
       const paymentIntent = await stripe.paymentIntents.create({
-        amount: Math.round(amount * 100), // Convert to cents
+        amount: Math.round(Number(booking.totalPrice) * 100), // Convert to cents
         currency: "usd",
         metadata: {
-          bookingId,
+          bookingId: booking.id.toString(),
           userId: req.user.id.toString()
         }
       });
+      
+      // Update booking with payment intent ID
+      await storage.updateBookingStatus(booking.id, "processing", paymentIntent.id);
       
       res.json({ clientSecret: paymentIntent.client_secret });
     } catch (error: any) {
       res.status(500).json({ message: "Error creating payment intent: " + error.message });
     }
   });
-  
-  // Payment confirmation webhook
-  app.post("/api/payment-confirmation", async (req, res) => {
+
+  // Confirm booking after payment
+  app.post("/api/confirm-booking/:id", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Not authenticated" });
+    }
+    
     try {
-      const { bookingId, paymentId } = req.body;
+      const bookingId = parseInt(req.params.id);
+      const booking = await storage.getBooking(bookingId);
       
-      if (!req.isAuthenticated()) {
-        return res.status(401).json({ message: "Authentication required" });
-      }
-      
-      // Update booking status
-      const updatedBooking = await storage.updateBookingStatus(
-        parseInt(bookingId), 
-        "confirmed",
-        paymentId
-      );
-      
-      if (!updatedBooking) {
+      if (!booking) {
         return res.status(404).json({ message: "Booking not found" });
       }
       
+      // Check if booking belongs to current user
+      if (booking.userId !== req.user.id) {
+        return res.status(403).json({ message: "Unauthorized access to booking" });
+      }
+      
+      // Update booking status to confirmed
+      const updatedBooking = await storage.updateBookingStatus(bookingId, "confirmed");
+      
+      // Update vehicle availability to false
+      await storage.updateVehicleAvailability(booking.vehicleId, false);
+      
       res.json(updatedBooking);
     } catch (error) {
-      res.status(500).json({ message: "Error confirming payment" });
+      res.status(500).json({ message: "Error confirming booking" });
     }
   });
 

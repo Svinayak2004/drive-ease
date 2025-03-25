@@ -30,10 +30,13 @@ async function comparePasswords(supplied: string, stored: string) {
 
 export function setupAuth(app: Express) {
   const sessionSettings: session.SessionOptions = {
-    secret: process.env.SESSION_SECRET || "ride-rentals-secret-key",
+    secret: process.env.SESSION_SECRET || "student-car-rental-secret",
     resave: false,
     saveUninitialized: false,
     store: storage.sessionStore,
+    cookie: {
+      maxAge: 24 * 60 * 60 * 1000, // 24 hours
+    }
   };
 
   app.set("trust proxy", 1);
@@ -43,52 +46,42 @@ export function setupAuth(app: Express) {
 
   passport.use(
     new LocalStrategy(async (username, password, done) => {
-      try {
-        // Check if the input is an email
-        const isEmail = username.includes('@');
-        let user;
-        
-        if (isEmail) {
-          user = await storage.getUserByEmail(username);
-        } else {
-          user = await storage.getUserByUsername(username);
-        }
-        
-        if (!user || !(await comparePasswords(password, user.password))) {
-          return done(null, false);
-        } else {
-          return done(null, user);
-        }
-      } catch (error) {
-        return done(error);
+      // Try to find user by username first
+      let user = await storage.getUserByUsername(username);
+      
+      // If not found, try with email
+      if (!user) {
+        user = await storage.getUserByEmail(username);
+      }
+      
+      if (!user || !(await comparePasswords(password, user.password))) {
+        return done(null, false);
+      } else {
+        return done(null, user);
       }
     }),
   );
 
   passport.serializeUser((user, done) => done(null, user.id));
   passport.deserializeUser(async (id: number, done) => {
-    try {
-      const user = await storage.getUser(id);
-      done(null, user);
-    } catch (error) {
-      done(error);
-    }
+    const user = await storage.getUser(id);
+    done(null, user);
   });
 
   app.post("/api/register", async (req, res, next) => {
-    try {
-      // Check if username already exists
-      const existingUserByUsername = await storage.getUserByUsername(req.body.username);
-      if (existingUserByUsername) {
-        return res.status(400).json({ message: "Username already exists" });
-      }
-      
-      // Check if email already exists
-      const existingUserByEmail = await storage.getUserByEmail(req.body.email);
-      if (existingUserByEmail) {
-        return res.status(400).json({ message: "Email already exists" });
-      }
+    // Check if username exists
+    const existingUsername = await storage.getUserByUsername(req.body.username);
+    if (existingUsername) {
+      return res.status(400).json({ message: "Username already exists" });
+    }
+    
+    // Check if email exists
+    const existingEmail = await storage.getUserByEmail(req.body.email);
+    if (existingEmail) {
+      return res.status(400).json({ message: "Email already exists" });
+    }
 
+    try {
       const user = await storage.createUser({
         ...req.body,
         password: await hashPassword(req.body.password),
@@ -96,28 +89,19 @@ export function setupAuth(app: Express) {
 
       req.login(user, (err) => {
         if (err) return next(err);
-        // Return user without password
+        // Don't send password back to client
         const { password, ...userWithoutPassword } = user;
         res.status(201).json(userWithoutPassword);
       });
     } catch (error) {
-      next(error);
+      res.status(500).json({ message: "Error registering user" });
     }
   });
 
-  app.post("/api/login", (req, res, next) => {
-    passport.authenticate("local", (err, user, info) => {
-      if (err) return next(err);
-      if (!user) {
-        return res.status(401).json({ message: "Invalid username or password" });
-      }
-      req.login(user, (err) => {
-        if (err) return next(err);
-        // Return user without password
-        const { password, ...userWithoutPassword } = user;
-        res.status(200).json(userWithoutPassword);
-      });
-    })(req, res, next);
+  app.post("/api/login", passport.authenticate("local"), (req, res) => {
+    // Don't send password back to client
+    const { password, ...userWithoutPassword } = req.user as SelectUser;
+    res.status(200).json(userWithoutPassword);
   });
 
   app.post("/api/logout", (req, res, next) => {
@@ -129,8 +113,8 @@ export function setupAuth(app: Express) {
 
   app.get("/api/user", (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
-    // Return user without password
-    const { password, ...userWithoutPassword } = req.user;
+    // Don't send password back to client
+    const { password, ...userWithoutPassword } = req.user as SelectUser;
     res.json(userWithoutPassword);
   });
 }

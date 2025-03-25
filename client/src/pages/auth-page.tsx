@@ -1,64 +1,47 @@
 import { useEffect } from "react";
-import { useLocation } from "wouter";
-import { useAuth } from "@/hooks/use-auth";
-import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs";
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
+import { z } from "zod";
+import { useAuth } from "@/hooks/use-auth";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Loader2 } from "lucide-react";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Checkbox } from "@/components/ui/checkbox";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
+import { useLocation } from "wouter";
 
 // Login form schema
-const loginSchema = z.object({
-  username: z.string().min(1, "Username or email is required"),
+const loginFormSchema = z.object({
+  username: z.string().min(1, "Username is required"),
   password: z.string().min(1, "Password is required"),
+  rememberMe: z.boolean().optional(),
 });
 
-type LoginFormValues = z.infer<typeof loginSchema>;
-
-// Registration form schema
-const registerSchema = z.object({
-  username: z.string().min(3, "Username must be at least 3 characters"),
+// Register form schema
+const registerFormSchema = z.object({
+  firstName: z.string().min(1, "First name is required"),
+  lastName: z.string().min(1, "Last name is required"),
   email: z.string().email("Invalid email address"),
+  username: z.string().min(3, "Username must be at least 3 characters"),
   password: z.string().min(8, "Password must be at least 8 characters"),
   confirmPassword: z.string(),
-  firstName: z.string().optional(),
-  lastName: z.string().optional(),
-}).refine((data) => data.password === data.confirmPassword, {
+  terms: z.boolean().refine(val => val === true, "You must accept the terms"),
+}).refine(data => data.password === data.confirmPassword, {
   message: "Passwords don't match",
   path: ["confirmPassword"],
 });
 
-type RegisterFormValues = z.infer<typeof registerSchema>;
+type LoginFormValues = z.infer<typeof loginFormSchema>;
+type RegisterFormValues = z.infer<typeof registerFormSchema>;
 
 export default function AuthPage() {
-  const [location, navigate] = useLocation();
   const { user, loginMutation, registerMutation } = useAuth();
-  
-  // Redirect if already logged in
+  const [_, navigate] = useLocation();
+
+  // Redirect to home if already logged in
   useEffect(() => {
     if (user) {
       navigate("/");
@@ -67,71 +50,101 @@ export default function AuthPage() {
 
   // Login form
   const loginForm = useForm<LoginFormValues>({
-    resolver: zodResolver(loginSchema),
+    resolver: zodResolver(loginFormSchema),
     defaultValues: {
       username: "",
       password: "",
+      rememberMe: false,
     },
   });
 
   // Register form
   const registerForm = useForm<RegisterFormValues>({
-    resolver: zodResolver(registerSchema),
+    resolver: zodResolver(registerFormSchema),
     defaultValues: {
-      username: "",
-      email: "",
-      password: "",
-      confirmPassword: "",
       firstName: "",
       lastName: "",
+      email: "",
+      username: "",
+      password: "",
+      confirmPassword: "",
+      terms: false,
     },
   });
 
-  const onLoginSubmit = async (data: LoginFormValues) => {
-    await loginMutation.mutateAsync(data);
+  const handleLoginSubmit = (values: LoginFormValues) => {
+    loginMutation.mutate(
+      {
+        username: values.username,
+        password: values.password,
+      },
+      {
+        onSuccess: () => {
+          navigate("/");
+        },
+      }
+    );
   };
 
-  const onRegisterSubmit = async (data: RegisterFormValues) => {
-    await registerMutation.mutateAsync(data);
+  const handleRegisterSubmit = (values: RegisterFormValues) => {
+    registerMutation.mutate(
+      {
+        firstName: values.firstName,
+        lastName: values.lastName,
+        email: values.email,
+        username: values.username,
+        password: values.password,
+        confirmPassword: values.confirmPassword,
+        phoneNumber: "",
+      },
+      {
+        onSuccess: () => {
+          navigate("/");
+        },
+      }
+    );
   };
 
   return (
-    <div className="flex flex-col min-h-screen">
+    <div className="min-h-screen flex flex-col bg-gray-50">
       <Navbar />
       
-      <div className="flex-grow flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 bg-gray-50">
-        <div className="grid md:grid-cols-2 gap-8 w-full max-w-6xl">
-          {/* Left side - Auth forms */}
-          <div className="max-w-md mx-auto w-full">
+      <div className="flex-grow flex items-center justify-center p-4 py-12">
+        <div className="w-full max-w-6xl grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* Left: Auth Forms */}
+          <div>
             <Tabs defaultValue="login" className="w-full">
-              <TabsList className="grid w-full grid-cols-2 mb-6">
+              <TabsList className="grid grid-cols-2 w-full mb-6">
                 <TabsTrigger value="login">Login</TabsTrigger>
-                <TabsTrigger value="register">Sign Up</TabsTrigger>
+                <TabsTrigger value="signup">Sign Up</TabsTrigger>
               </TabsList>
-              
+
+              {/* Login Form */}
               <TabsContent value="login">
                 <Card>
                   <CardHeader>
-                    <CardTitle>Welcome back</CardTitle>
-                    <CardDescription>Login to access your account</CardDescription>
+                    <CardTitle className="text-2xl">Welcome back</CardTitle>
+                    <CardDescription>
+                      Log in to your account to access your bookings and rentals
+                    </CardDescription>
                   </CardHeader>
                   <CardContent>
                     <Form {...loginForm}>
-                      <form onSubmit={loginForm.handleSubmit(onLoginSubmit)} className="space-y-4">
+                      <form onSubmit={loginForm.handleSubmit(handleLoginSubmit)} className="space-y-4">
                         <FormField
                           control={loginForm.control}
                           name="username"
                           render={({ field }) => (
                             <FormItem>
-                              <FormLabel>Username or Email</FormLabel>
+                              <FormLabel>Email or Username</FormLabel>
                               <FormControl>
-                                <Input placeholder="Enter your username or email" {...field} />
+                                <Input placeholder="you@example.com" {...field} />
                               </FormControl>
                               <FormMessage />
                             </FormItem>
                           )}
                         />
-                        
+
                         <FormField
                           control={loginForm.control}
                           name="password"
@@ -139,47 +152,66 @@ export default function AuthPage() {
                             <FormItem>
                               <FormLabel>Password</FormLabel>
                               <FormControl>
-                                <Input type="password" placeholder="Enter your password" {...field} />
+                                <Input type="password" placeholder="********" {...field} />
                               </FormControl>
                               <FormMessage />
                             </FormItem>
                           )}
                         />
-                        
-                        <Button type="submit" className="w-full" disabled={loginMutation.isPending}>
-                          {loginMutation.isPending ? (
-                            <>
-                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                              Logging in...
-                            </>
-                          ) : (
-                            "Login"
-                          )}
+
+                        <div className="flex items-center justify-between">
+                          <FormField
+                            control={loginForm.control}
+                            name="rememberMe"
+                            render={({ field }) => (
+                              <FormItem className="flex flex-row items-center space-x-2 space-y-0">
+                                <FormControl>
+                                  <Checkbox 
+                                    checked={field.value} 
+                                    onCheckedChange={field.onChange} 
+                                  />
+                                </FormControl>
+                                <FormLabel className="text-sm font-normal">Remember me</FormLabel>
+                              </FormItem>
+                            )}
+                          />
+                          <a href="#" className="text-sm text-primary hover:text-primary/90">Forgot password?</a>
+                        </div>
+
+                        <Button 
+                          type="submit" 
+                          className="w-full bg-primary hover:bg-primary/90"
+                          disabled={loginMutation.isPending}
+                        >
+                          {loginMutation.isPending ? "Logging in..." : "Log in"}
                         </Button>
                       </form>
                     </Form>
                   </CardContent>
                 </Card>
               </TabsContent>
-              
-              <TabsContent value="register">
+
+              {/* Signup Form */}
+              <TabsContent value="signup">
                 <Card>
                   <CardHeader>
-                    <CardTitle>Create an account</CardTitle>
-                    <CardDescription>Sign up to start renting vehicles</CardDescription>
+                    <CardTitle className="text-2xl">Create an account</CardTitle>
+                    <CardDescription>
+                      Join DrivEase to start renting vehicles at student-friendly prices
+                    </CardDescription>
                   </CardHeader>
                   <CardContent>
                     <Form {...registerForm}>
-                      <form onSubmit={registerForm.handleSubmit(onRegisterSubmit)} className="space-y-4">
+                      <form onSubmit={registerForm.handleSubmit(handleRegisterSubmit)} className="space-y-4">
                         <div className="grid grid-cols-2 gap-4">
                           <FormField
                             control={registerForm.control}
                             name="firstName"
                             render={({ field }) => (
                               <FormItem>
-                                <FormLabel>First Name</FormLabel>
+                                <FormLabel>First name</FormLabel>
                                 <FormControl>
-                                  <Input placeholder="First name" {...field} />
+                                  <Input {...field} />
                                 </FormControl>
                                 <FormMessage />
                               </FormItem>
@@ -191,30 +223,16 @@ export default function AuthPage() {
                             name="lastName"
                             render={({ field }) => (
                               <FormItem>
-                                <FormLabel>Last Name</FormLabel>
+                                <FormLabel>Last name</FormLabel>
                                 <FormControl>
-                                  <Input placeholder="Last name" {...field} />
+                                  <Input {...field} />
                                 </FormControl>
                                 <FormMessage />
                               </FormItem>
                             )}
                           />
                         </div>
-                        
-                        <FormField
-                          control={registerForm.control}
-                          name="username"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Username</FormLabel>
-                              <FormControl>
-                                <Input placeholder="Choose a username" {...field} />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                        
+
                         <FormField
                           control={registerForm.control}
                           name="email"
@@ -222,13 +240,28 @@ export default function AuthPage() {
                             <FormItem>
                               <FormLabel>Email</FormLabel>
                               <FormControl>
-                                <Input placeholder="Enter your email" {...field} />
+                                <Input placeholder="you@example.com" {...field} />
+                              </FormControl>
+                              <p className="text-xs text-gray-500 mt-1">Use your student email for special discounts</p>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={registerForm.control}
+                          name="username"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Username</FormLabel>
+                              <FormControl>
+                                <Input {...field} />
                               </FormControl>
                               <FormMessage />
                             </FormItem>
                           )}
                         />
-                        
+
                         <FormField
                           control={registerForm.control}
                           name="password"
@@ -236,36 +269,54 @@ export default function AuthPage() {
                             <FormItem>
                               <FormLabel>Password</FormLabel>
                               <FormControl>
-                                <Input type="password" placeholder="Create a password" {...field} />
+                                <Input type="password" placeholder="Min. 8 characters" {...field} />
                               </FormControl>
                               <FormMessage />
                             </FormItem>
                           )}
                         />
-                        
+
                         <FormField
                           control={registerForm.control}
                           name="confirmPassword"
                           render={({ field }) => (
                             <FormItem>
-                              <FormLabel>Confirm Password</FormLabel>
+                              <FormLabel>Confirm password</FormLabel>
                               <FormControl>
-                                <Input type="password" placeholder="Confirm your password" {...field} />
+                                <Input type="password" {...field} />
                               </FormControl>
                               <FormMessage />
                             </FormItem>
                           )}
                         />
-                        
-                        <Button type="submit" className="w-full" disabled={registerMutation.isPending}>
-                          {registerMutation.isPending ? (
-                            <>
-                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                              Creating account...
-                            </>
-                          ) : (
-                            "Sign Up"
+
+                        <FormField
+                          control={registerForm.control}
+                          name="terms"
+                          render={({ field }) => (
+                            <FormItem className="flex flex-row items-start space-x-2 space-y-0">
+                              <FormControl>
+                                <Checkbox 
+                                  checked={field.value} 
+                                  onCheckedChange={field.onChange} 
+                                />
+                              </FormControl>
+                              <div className="space-y-1 leading-none">
+                                <FormLabel className="text-sm font-normal">
+                                  I agree to the <a href="#" className="text-primary hover:text-primary/90">Terms of Service</a> and <a href="#" className="text-primary hover:text-primary/90">Privacy Policy</a>
+                                </FormLabel>
+                                <FormMessage />
+                              </div>
+                            </FormItem>
                           )}
+                        />
+
+                        <Button 
+                          type="submit" 
+                          className="w-full bg-primary hover:bg-primary/90"
+                          disabled={registerMutation.isPending}
+                        >
+                          {registerMutation.isPending ? "Creating account..." : "Sign up"}
                         </Button>
                       </form>
                     </Form>
@@ -275,36 +326,43 @@ export default function AuthPage() {
             </Tabs>
           </div>
           
-          {/* Right side - Hero content */}
-          <div className="hidden md:flex flex-col justify-center p-8 bg-primary rounded-lg text-white">
-            <h2 className="text-3xl font-bold mb-4">RideRentals for Students</h2>
-            <p className="text-lg mb-6">Join our community of students who enjoy affordable and convenient vehicle rentals for any occasion.</p>
-            <ul className="space-y-4">
-              <li className="flex items-start">
-                <svg className="h-6 w-6 mr-2 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-                <span>Special student discounts on all rentals</span>
-              </li>
-              <li className="flex items-start">
-                <svg className="h-6 w-6 mr-2 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-                <span>Wide selection of cars, bikes, and buses</span>
-              </li>
-              <li className="flex items-start">
-                <svg className="h-6 w-6 mr-2 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-                <span>Optional professional drivers</span>
-              </li>
-              <li className="flex items-start">
-                <svg className="h-6 w-6 mr-2 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-                <span>Simple booking process with secure payments</span>
-              </li>
-            </ul>
+          {/* Right: Hero Section */}
+          <div className="hidden lg:flex flex-col justify-center">
+            <div className="bg-primary text-white p-8 rounded-lg shadow-md">
+              <h2 className="text-3xl font-bold mb-4">Your Journey Starts Here</h2>
+              <p className="text-lg mb-6">Join DrivEase and get access to:</p>
+              
+              <ul className="space-y-4 mb-8">
+                <li className="flex items-start">
+                  <i className="fas fa-check-circle mt-1 mr-3 text-green-300"></i>
+                  <span>Exclusive student discounts on all rentals</span>
+                </li>
+                <li className="flex items-start">
+                  <i className="fas fa-check-circle mt-1 mr-3 text-green-300"></i>
+                  <span>Wide selection of cars, bikes, and buses</span>
+                </li>
+                <li className="flex items-start">
+                  <i className="fas fa-check-circle mt-1 mr-3 text-green-300"></i>
+                  <span>Optional professional drivers for your trips</span>
+                </li>
+                <li className="flex items-start">
+                  <i className="fas fa-check-circle mt-1 mr-3 text-green-300"></i>
+                  <span>Easy booking process with instant confirmation</span>
+                </li>
+              </ul>
+              
+              <div className="mt-6 text-center">
+                <img 
+                  src="https://images.unsplash.com/photo-1580273916550-e323be2ae537?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80" 
+                  alt="Student with rental car keys" 
+                  className="rounded-md shadow-lg mb-4"
+                />
+                <p className="italic text-gray-200">
+                  "DrivEase made weekend trips so much easier for us! Highly recommended for all students."
+                </p>
+                <p className="font-medium mt-2">- The Student Council</p>
+              </div>
+            </div>
           </div>
         </div>
       </div>

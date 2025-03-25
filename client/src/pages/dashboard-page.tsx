@@ -1,119 +1,271 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useAuth } from "@/hooks/use-auth";
+import { useLocation } from "wouter";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
-import BookingList from "@/components/dashboard/BookingList";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { 
-  Card, 
-  CardContent, 
-  CardDescription, 
-  CardHeader, 
-  CardTitle 
-} from "@/components/ui/card";
-import { Loader2 } from "lucide-react";
+import { Separator } from "@/components/ui/separator";
+import { Badge } from "@/components/ui/badge";
+import { Loader2, Calendar, Clock, MapPin, CarFront, User, CalendarDays } from "lucide-react";
+import { Vehicle, Booking } from "@shared/schema";
+import { format, isPast, isFuture, isToday } from "date-fns";
+import { useAuth } from "@/hooks/use-auth";
 
 export default function DashboardPage() {
   const { user } = useAuth();
+  const [_, navigate] = useLocation();
+  const [activeTab, setActiveTab] = useState("upcoming");
   
-  const { data: bookings, isLoading, error } = useQuery({
+  // Fetch user's bookings
+  const { data: bookings, isLoading: bookingsLoading } = useQuery<Booking[]>({
     queryKey: ["/api/bookings"],
   });
+
+  // Helper function to get vehicle for a booking
+  const useVehicle = (vehicleId: number) => {
+    return useQuery<Vehicle>({
+      queryKey: [`/api/vehicles/${vehicleId}`],
+    });
+  };
+
+  if (bookingsLoading) {
+    return (
+      <div className="min-h-screen flex flex-col bg-gray-50">
+        <Navbar />
+        <div className="flex-grow flex justify-center items-center">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+        <Footer />
+      </div>
+    );
+  }
+
+  // Filter bookings based on date
+  const upcomingBookings = bookings?.filter(booking => 
+    isFuture(new Date(booking.endDate)) || isToday(new Date(booking.endDate))
+  ) || [];
   
-  // Separate bookings by status
-  const upcomingBookings = bookings?.filter(
-    booking => booking.status === "confirmed" || booking.status === "pending"
-  );
-  
-  const pastBookings = bookings?.filter(
-    booking => booking.status === "completed" || booking.status === "cancelled"
-  );
-  
+  const pastBookings = bookings?.filter(booking => 
+    isPast(new Date(booking.endDate)) && !isToday(new Date(booking.endDate))
+  ) || [];
+
   return (
-    <div className="flex flex-col min-h-screen">
+    <div className="min-h-screen flex flex-col bg-gray-50">
       <Navbar />
       
-      <main className="flex-grow pt-8 pb-16 bg-gray-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <main className="flex-grow">
+        <div className="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
+          {/* User Profile Section */}
           <div className="mb-8">
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">My Dashboard</h1>
-            <p className="text-gray-600">Manage your bookings and account</p>
-          </div>
-          
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-            {/* Sidebar */}
-            <div>
-              <Card>
-                <CardHeader>
-                  <CardTitle>Account Info</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <div>
-                      <p className="text-sm text-gray-500">Username</p>
-                      <p className="font-medium">{user?.username}</p>
+            <Card>
+              <CardContent className="p-6">
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                  <div className="flex items-center gap-4">
+                    <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+                      <User className="h-8 w-8" />
                     </div>
                     <div>
-                      <p className="text-sm text-gray-500">Email</p>
-                      <p className="font-medium">{user?.email}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-500">Name</p>
-                      <p className="font-medium">
-                        {user?.firstName} {user?.lastName}
-                      </p>
+                      <h1 className="text-2xl font-bold">{user?.firstName} {user?.lastName}</h1>
+                      <p className="text-gray-500">{user?.email}</p>
                     </div>
                   </div>
-                </CardContent>
-              </Card>
-            </div>
-            
-            {/* Main Content */}
-            <div className="lg:col-span-3">
-              <Card>
-                <CardHeader>
-                  <CardTitle>My Bookings</CardTitle>
-                  <CardDescription>View and manage your rentals</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {isLoading ? (
-                    <div className="flex justify-center items-center py-12">
-                      <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                    </div>
-                  ) : error ? (
+                  
+                  <Button 
+                    className="bg-primary hover:bg-primary/90"
+                    onClick={() => navigate("/vehicles")}
+                  >
+                    Book a Vehicle
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+          
+          {/* Bookings Section */}
+          <Card>
+            <CardHeader>
+              <CardTitle>My Bookings</CardTitle>
+              <CardDescription>View and manage your vehicle rentals</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Tabs defaultValue="upcoming" value={activeTab} onValueChange={setActiveTab}>
+                <TabsList className="grid w-full md:w-[400px] grid-cols-2">
+                  <TabsTrigger value="upcoming" className="relative">
+                    Upcoming
+                    {upcomingBookings.length > 0 && (
+                      <Badge className="ml-2 bg-primary">{upcomingBookings.length}</Badge>
+                    )}
+                  </TabsTrigger>
+                  <TabsTrigger value="past">
+                    Past Bookings
+                    {pastBookings.length > 0 && (
+                      <Badge className="ml-2">{pastBookings.length}</Badge>
+                    )}
+                  </TabsTrigger>
+                </TabsList>
+                
+                <TabsContent value="upcoming" className="mt-6">
+                  {upcomingBookings.length === 0 ? (
                     <div className="text-center py-12">
-                      <p className="text-red-500">Error loading bookings. Please try again later.</p>
+                      <div className="w-16 h-16 mx-auto bg-gray-100 rounded-full flex items-center justify-center mb-4">
+                        <Calendar className="h-8 w-8 text-gray-400" />
+                      </div>
+                      <h3 className="text-lg font-medium text-gray-900 mb-1">No Upcoming Bookings</h3>
+                      <p className="text-gray-500 mb-4">You don't have any upcoming vehicle rentals.</p>
+                      <Button 
+                        className="bg-primary hover:bg-primary/90"
+                        onClick={() => navigate("/vehicles")}
+                      >
+                        Book a Vehicle
+                      </Button>
                     </div>
                   ) : (
-                    <Tabs defaultValue="upcoming">
-                      <TabsList className="grid w-full grid-cols-2 mb-6">
-                        <TabsTrigger value="upcoming">Upcoming</TabsTrigger>
-                        <TabsTrigger value="past">Past</TabsTrigger>
-                      </TabsList>
-                      
-                      <TabsContent value="upcoming">
-                        <BookingList 
-                          bookings={upcomingBookings || []} 
-                          emptyMessage="You don't have any upcoming bookings." 
-                        />
-                      </TabsContent>
-                      
-                      <TabsContent value="past">
-                        <BookingList 
-                          bookings={pastBookings || []} 
-                          emptyMessage="You don't have any past bookings." 
-                        />
-                      </TabsContent>
-                    </Tabs>
+                    <div className="space-y-6">
+                      {upcomingBookings.map(booking => {
+                        const { data: vehicle } = useVehicle(booking.vehicleId);
+                        
+                        return (
+                          <BookingCard 
+                            key={booking.id} 
+                            booking={booking} 
+                            vehicle={vehicle} 
+                            isUpcoming={true}
+                          />
+                        );
+                      })}
+                    </div>
                   )}
-                </CardContent>
-              </Card>
-            </div>
-          </div>
+                </TabsContent>
+                
+                <TabsContent value="past" className="mt-6">
+                  {pastBookings.length === 0 ? (
+                    <div className="text-center py-12">
+                      <div className="w-16 h-16 mx-auto bg-gray-100 rounded-full flex items-center justify-center mb-4">
+                        <Clock className="h-8 w-8 text-gray-400" />
+                      </div>
+                      <h3 className="text-lg font-medium text-gray-900 mb-1">No Past Bookings</h3>
+                      <p className="text-gray-500">Your booking history will appear here.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-6">
+                      {pastBookings.map(booking => {
+                        const { data: vehicle } = useVehicle(booking.vehicleId);
+                        
+                        return (
+                          <BookingCard 
+                            key={booking.id} 
+                            booking={booking} 
+                            vehicle={vehicle} 
+                            isUpcoming={false}
+                          />
+                        );
+                      })}
+                    </div>
+                  )}
+                </TabsContent>
+              </Tabs>
+            </CardContent>
+          </Card>
         </div>
       </main>
       
       <Footer />
     </div>
+  );
+}
+
+interface BookingCardProps {
+  booking: Booking;
+  vehicle?: Vehicle;
+  isUpcoming: boolean;
+}
+
+function BookingCard({ booking, vehicle, isUpcoming }: BookingCardProps) {
+  const [_, navigate] = useLocation();
+  
+  if (!vehicle) {
+    return (
+      <Card>
+        <CardContent className="p-4">
+          <div className="flex items-center justify-center h-32">
+            <Loader2 className="h-5 w-5 animate-spin text-primary" />
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+  
+  return (
+    <Card className="overflow-hidden">
+      <div className="sm:flex">
+        <div className="sm:w-1/3 h-48 sm:h-auto">
+          <img 
+            src={vehicle.imageUrl} 
+            alt={vehicle.name} 
+            className="w-full h-full object-cover"
+          />
+        </div>
+        <div className="p-5 sm:w-2/3">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4">
+            <div>
+              <h3 className="text-lg font-bold">{vehicle.name}</h3>
+              <p className="text-gray-500 capitalize">{vehicle.type}</p>
+            </div>
+            <Badge className={isUpcoming ? "bg-green-500" : "bg-gray-500"}>
+              {booking.status}
+            </Badge>
+          </div>
+          
+          <Separator className="my-4" />
+          
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+            <div className="flex items-start gap-2">
+              <CalendarDays className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm text-gray-500">Rental Period</p>
+                <p className="font-medium">
+                  {format(new Date(booking.startDate), "MMM d")} - {format(new Date(booking.endDate), "MMM d, yyyy")}
+                </p>
+              </div>
+            </div>
+            
+            <div className="flex items-start gap-2">
+              <MapPin className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm text-gray-500">Pickup Location</p>
+                <p className="font-medium">Campus Office</p>
+              </div>
+            </div>
+          </div>
+          
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-500">Total Price</p>
+              <p className="text-lg font-bold text-primary">${Number(booking.totalPrice).toFixed(2)}</p>
+            </div>
+            
+            {isUpcoming && (
+              <Button
+                className="bg-primary hover:bg-primary/90"
+                onClick={() => navigate(`/confirmation/${booking.id}`)}
+              >
+                View Details
+              </Button>
+            )}
+            
+            {!isUpcoming && (
+              <Button
+                variant="outline"
+                onClick={() => navigate(`/vehicles/${vehicle.id}`)}
+              >
+                Book Again
+              </Button>
+            )}
+          </div>
+        </div>
+      </div>
+    </Card>
   );
 }

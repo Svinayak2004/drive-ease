@@ -1,217 +1,400 @@
 import { useState } from "react";
 import { useParams, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { useAuth } from "@/hooks/use-auth";
-import { useToast } from "@/hooks/use-toast";
-import { Vehicle } from "@shared/schema";
-import { queryClient, apiRequest } from "@/lib/queryClient";
+import { useForm, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { format, differenceInDays, addDays } from "date-fns";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
-import BookingForm from "@/components/booking/BookingForm";
-import PaymentForm from "@/components/booking/PaymentForm";
-import { Card, CardContent } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Switch } from "@/components/ui/switch";
+import { cn } from "@/lib/utils";
+import { Loader2, CalendarIcon } from "lucide-react";
+import { Vehicle, Booking } from "@shared/schema";
+import { useAuth } from "@/hooks/use-auth";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
+
+const bookingFormSchema = z.object({
+  phoneNumber: z.string().min(1, "Phone number is required"),
+  startDate: z.date({
+    required_error: "Start date is required",
+  }),
+  endDate: z.date({
+    required_error: "End date is required",
+  }),
+  includeDriver: z.boolean().default(false),
+}).refine(data => {
+  return differenceInDays(data.endDate, data.startDate) >= 0;
+}, {
+  message: "End date must be after start date",
+  path: ["endDate"],
+});
+
+type BookingFormValues = z.infer<typeof bookingFormSchema>;
 
 export default function BookingPage() {
-  const { id } = useParams<{ id: string }>();
+  const { id } = useParams();
+  const vehicleId = parseInt(id);
   const [_, navigate] = useLocation();
-  const { toast } = useToast();
   const { user } = useAuth();
+  const { toast } = useToast();
+  const [totalPrice, setTotalPrice] = useState(0);
   
-  const [activeTab, setActiveTab] = useState<string>("details");
-  const [bookingData, setBookingData] = useState<{
-    startDate: Date | null;
-    endDate: Date | null;
-    withDriver: boolean;
-    totalDays: number;
-    totalPrice: number;
-    bookingId?: number;
-  }>({
-    startDate: null,
-    endDate: null,
-    withDriver: false,
-    totalDays: 0,
-    totalPrice: 0
+  // Fetch vehicle details
+  const { data: vehicle, isLoading: vehicleLoading } = useQuery<Vehicle>({
+    queryKey: [`/api/vehicles/${vehicleId}`],
   });
-  
-  const { data: vehicle, isLoading } = useQuery<Vehicle>({
-    queryKey: [`/api/vehicles/${id}`],
-  });
-  
-  const createBookingMutation = useMutation({
-    mutationFn: async (data: any) => {
-      const res = await apiRequest("POST", "/api/bookings", data);
-      return await res.json();
+
+  const form = useForm<BookingFormValues>({
+    resolver: zodResolver(bookingFormSchema),
+    defaultValues: {
+      phoneNumber: user?.phoneNumber || "",
+      startDate: new Date(),
+      endDate: addDays(new Date(), 1),
+      includeDriver: false,
     },
-    onSuccess: (data) => {
+  });
+
+  // Update total price when form values change
+  const calculateTotalPrice = (values: Partial<BookingFormValues>) => {
+    if (!vehicle || !values.startDate || !values.endDate) return 0;
+    
+    const days = Math.max(1, differenceInDays(values.endDate, values.startDate) + 1);
+    let price = Number(vehicle.pricePerDay) * days;
+    
+    // Add 25% extra for driver if included
+    if (values.includeDriver) {
+      price += price * 0.25;
+    }
+    
+    return price;
+  };
+
+  // Watch form values to update price
+  const watchedValues = form.watch();
+  useState(() => {
+    setTotalPrice(calculateTotalPrice(watchedValues));
+  });
+
+  // Create booking mutation
+  const createBookingMutation = useMutation({
+    mutationFn: async (formData: BookingFormValues) => {
+      const bookingData = {
+        vehicleId,
+        userId: user!.id,
+        startDate: formData.startDate,
+        endDate: formData.endDate,
+        includeDriver: formData.includeDriver,
+        totalPrice
+      };
+      
+      const res = await apiRequest("POST", "/api/bookings", bookingData);
+      return await res.json() as Booking;
+    },
+    onSuccess: (booking: Booking) => {
       toast({
         title: "Booking created",
-        description: "Please proceed to payment",
+        description: "Proceeding to payment",
       });
-      setBookingData(prev => ({
-        ...prev,
-        bookingId: data.id
-      }));
-      setActiveTab("payment");
+      navigate(`/checkout/${booking.id}`);
     },
     onError: (error: Error) => {
       toast({
         title: "Booking failed",
-        description: error.message,
+        description: error.message || "Failed to create booking",
         variant: "destructive",
       });
     },
   });
-  
-  const paymentConfirmMutation = useMutation({
-    mutationFn: async (data: any) => {
-      const res = await apiRequest("POST", "/api/payment-confirmation", data);
-      return await res.json();
-    },
-    onSuccess: () => {
-      toast({
-        title: "Payment successful",
-        description: "Your booking has been confirmed!",
-      });
-      queryClient.invalidateQueries({ queryKey: ["/api/bookings"] });
-      navigate("/dashboard");
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Payment confirmation failed",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
-  
-  const handleBookingSubmit = async (data: any) => {
-    if (!vehicle || !user) return;
-    
-    await createBookingMutation.mutateAsync({
-      vehicleId: vehicle.id,
-      startDate: data.startDate,
-      endDate: data.endDate,
-      withDriver: data.withDriver,
-      totalPrice: bookingData.totalPrice
-    });
+
+  const onSubmit = (data: BookingFormValues) => {
+    createBookingMutation.mutate(data);
   };
-  
-  const handlePaymentSuccess = async (paymentId: string) => {
-    if (!bookingData.bookingId) return;
-    
-    await paymentConfirmMutation.mutateAsync({
-      bookingId: bookingData.bookingId,
-      paymentId
-    });
-  };
-  
-  if (isLoading || !vehicle) {
+
+  if (vehicleLoading) {
     return (
-      <div className="flex flex-col min-h-screen">
+      <div className="min-h-screen flex flex-col bg-gray-50">
         <Navbar />
-        <main className="flex-grow flex items-center justify-center">
+        <div className="flex-grow flex justify-center items-center">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        </main>
+        </div>
         <Footer />
       </div>
     );
   }
-  
+
+  if (!vehicle) {
+    return (
+      <div className="min-h-screen flex flex-col bg-gray-50">
+        <Navbar />
+        <div className="flex-grow flex justify-center items-center p-4">
+          <Card className="w-full max-w-md">
+            <CardContent className="pt-6">
+              <h1 className="text-xl font-bold text-red-500 mb-2">Error Loading Vehicle</h1>
+              <p className="text-gray-600">Unable to load vehicle details. Please try again later.</p>
+              <Button 
+                className="mt-4 w-full" 
+                variant="outline"
+                onClick={() => navigate("/vehicles")}
+              >
+                Back to Vehicles
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+        <Footer />
+      </div>
+    );
+  }
+
   return (
-    <div className="flex flex-col min-h-screen">
+    <div className="min-h-screen flex flex-col bg-gray-50">
       <Navbar />
       
-      <main className="flex-grow pt-8 pb-16 bg-gray-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="mb-8">
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">Complete Your Booking</h1>
-            <p className="text-gray-600">Book {vehicle.name} for your next adventure</p>
-          </div>
+      <main className="flex-grow">
+        <div className="max-w-4xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
+          <Button 
+            variant="outline" 
+            className="mb-6"
+            onClick={() => navigate(`/vehicles/${vehicleId}`)}
+          >
+            &larr; Back to Vehicle
+          </Button>
           
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {/* Left Column - Booking Form */}
-            <div className="lg:col-span-2">
+          <h1 className="text-2xl font-bold text-gray-900 mb-6">Book Your Rental</h1>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {/* Left: Booking Form */}
+            <div className="md:col-span-2">
               <Card>
-                <CardContent className="pt-6">
-                  <Tabs value={activeTab} onValueChange={setActiveTab}>
-                    <TabsList className="grid w-full grid-cols-2">
-                      <TabsTrigger value="details">Booking Details</TabsTrigger>
-                      <TabsTrigger value="payment" disabled={!bookingData.bookingId}>Payment</TabsTrigger>
-                    </TabsList>
-                    
-                    <TabsContent value="details">
-                      <BookingForm 
-                        vehicle={vehicle} 
-                        user={user} 
-                        bookingData={bookingData}
-                        setBookingData={setBookingData}
-                        onSubmit={handleBookingSubmit}
-                        isSubmitting={createBookingMutation.isPending}
-                      />
-                    </TabsContent>
-                    
-                    <TabsContent value="payment">
-                      <PaymentForm 
-                        bookingData={bookingData}
-                        onPaymentSuccess={handlePaymentSuccess}
-                      />
-                    </TabsContent>
-                  </Tabs>
+                <CardHeader>
+                  <CardTitle>Booking Details</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <Form {...form}>
+                    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                      <div className="space-y-4">
+                        <FormField
+                          control={form.control}
+                          name="phoneNumber"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Phone Number</FormLabel>
+                              <FormControl>
+                                <Input placeholder="(123) 456-7890" {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <FormField
+                            control={form.control}
+                            name="startDate"
+                            render={({ field }) => (
+                              <FormItem className="flex flex-col">
+                                <FormLabel>Start Date</FormLabel>
+                                <Popover>
+                                  <PopoverTrigger asChild>
+                                    <FormControl>
+                                      <Button
+                                        variant={"outline"}
+                                        className={cn(
+                                          "w-full pl-3 text-left font-normal",
+                                          !field.value && "text-muted-foreground"
+                                        )}
+                                      >
+                                        {field.value ? (
+                                          format(field.value, "PPP")
+                                        ) : (
+                                          <span>Pick a date</span>
+                                        )}
+                                        <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                                      </Button>
+                                    </FormControl>
+                                  </PopoverTrigger>
+                                  <PopoverContent className="w-auto p-0" align="start">
+                                    <Calendar
+                                      mode="single"
+                                      selected={field.value}
+                                      onSelect={(date) => {
+                                        field.onChange(date);
+                                        // If end date is before new start date, update end date
+                                        const endDate = form.getValues("endDate");
+                                        if (date && endDate && date > endDate) {
+                                          form.setValue("endDate", addDays(date, 1));
+                                        }
+                                        setTotalPrice(calculateTotalPrice({
+                                          ...form.getValues(),
+                                          startDate: date || new Date()
+                                        }));
+                                      }}
+                                      disabled={(date) => 
+                                        date < new Date(new Date().setHours(0, 0, 0, 0))
+                                      }
+                                      initialFocus
+                                    />
+                                  </PopoverContent>
+                                </Popover>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          
+                          <FormField
+                            control={form.control}
+                            name="endDate"
+                            render={({ field }) => (
+                              <FormItem className="flex flex-col">
+                                <FormLabel>End Date</FormLabel>
+                                <Popover>
+                                  <PopoverTrigger asChild>
+                                    <FormControl>
+                                      <Button
+                                        variant={"outline"}
+                                        className={cn(
+                                          "w-full pl-3 text-left font-normal",
+                                          !field.value && "text-muted-foreground"
+                                        )}
+                                      >
+                                        {field.value ? (
+                                          format(field.value, "PPP")
+                                        ) : (
+                                          <span>Pick a date</span>
+                                        )}
+                                        <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                                      </Button>
+                                    </FormControl>
+                                  </PopoverTrigger>
+                                  <PopoverContent className="w-auto p-0" align="start">
+                                    <Calendar
+                                      mode="single"
+                                      selected={field.value}
+                                      onSelect={(date) => {
+                                        field.onChange(date);
+                                        setTotalPrice(calculateTotalPrice({
+                                          ...form.getValues(),
+                                          endDate: date || addDays(new Date(), 1)
+                                        }));
+                                      }}
+                                      disabled={(date) => {
+                                        const startDate = form.getValues("startDate");
+                                        return date < startDate;
+                                      }}
+                                      initialFocus
+                                    />
+                                  </PopoverContent>
+                                </Popover>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+                        
+                        <FormField
+                          control={form.control}
+                          name="includeDriver"
+                          render={({ field }) => (
+                            <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                              <div className="space-y-0.5">
+                                <FormLabel className="text-base">Include Driver</FormLabel>
+                                <p className="text-sm text-muted-foreground">
+                                  Add a professional driver for an additional 25%
+                                </p>
+                              </div>
+                              <FormControl>
+                                <Switch
+                                  checked={field.value}
+                                  onCheckedChange={(checked) => {
+                                    field.onChange(checked);
+                                    setTotalPrice(calculateTotalPrice({
+                                      ...form.getValues(),
+                                      includeDriver: checked
+                                    }));
+                                  }}
+                                />
+                              </FormControl>
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+                      
+                      <Button 
+                        type="submit" 
+                        className="w-full bg-primary hover:bg-primary/90"
+                        disabled={createBookingMutation.isPending}
+                      >
+                        {createBookingMutation.isPending ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Processing
+                          </>
+                        ) : (
+                          "Continue to Payment"
+                        )}
+                      </Button>
+                    </form>
+                  </Form>
                 </CardContent>
               </Card>
             </div>
             
-            {/* Right Column - Order Summary */}
+            {/* Right: Order Summary */}
             <div>
               <Card>
-                <CardContent className="pt-6">
-                  <h2 className="text-xl font-semibold mb-4">Booking Summary</h2>
-                  
-                  <div className="mb-4">
+                <CardHeader>
+                  <CardTitle>Order Summary</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex items-center gap-4">
                     <img 
                       src={vehicle.imageUrl} 
                       alt={vehicle.name} 
-                      className="w-full h-40 object-cover rounded-md mb-4"
+                      className="w-20 h-20 object-cover rounded-md"
                     />
-                    <h3 className="font-semibold text-lg">{vehicle.name}</h3>
-                    <p className="text-gray-500">{vehicle.category}</p>
+                    <div>
+                      <h3 className="font-medium">{vehicle.name}</h3>
+                      <p className="text-sm text-gray-500 capitalize">{vehicle.type}</p>
+                    </div>
                   </div>
                   
-                  <div className="space-y-3 border-t border-gray-200 pt-4">
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Vehicle:</span>
-                      <span className="font-medium">{vehicle.name}</span>
+                  <div className="border-t pt-4">
+                    <div className="flex justify-between mb-2">
+                      <span className="text-gray-600">Base price</span>
+                      <span>${Number(vehicle.pricePerDay)}/day</span>
                     </div>
                     
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Rental Period:</span>
-                      <span className="font-medium">
-                        {bookingData.totalDays > 0 ? `${bookingData.totalDays} Days` : 'Not selected'}
+                    <div className="flex justify-between mb-2">
+                      <span className="text-gray-600">
+                        Duration
+                      </span>
+                      <span>
+                        {watchedValues.startDate && watchedValues.endDate ? 
+                          `${differenceInDays(watchedValues.endDate, watchedValues.startDate) + 1} days` : 
+                          "1 day"}
                       </span>
                     </div>
                     
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Base Rate:</span>
-                      <span>${vehicle.pricePerDay} × {bookingData.totalDays > 0 ? bookingData.totalDays : '0'} days</span>
-                    </div>
-                    
-                    {bookingData.withDriver && (
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Driver Fee:</span>
-                        <span>$25 × {bookingData.totalDays > 0 ? bookingData.totalDays : '0'} days</span>
+                    {watchedValues.includeDriver && (
+                      <div className="flex justify-between mb-2">
+                        <span className="text-gray-600">Driver (+25%)</span>
+                        <span>Yes</span>
                       </div>
                     )}
-                    
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Student Discount:</span>
-                      <span className="text-green-600">-${((vehicle.pricePerDay * bookingData.totalDays) * 0.15).toFixed(2)}</span>
-                    </div>
-                    
-                    <div className="border-t border-gray-200 pt-3 flex justify-between">
-                      <span className="text-lg font-semibold">Total:</span>
-                      <span className="text-lg font-bold">${bookingData.totalPrice.toFixed(2)}</span>
+                  </div>
+                  
+                  <div className="border-t pt-4">
+                    <div className="flex justify-between font-semibold text-lg">
+                      <span>Total</span>
+                      <span>${totalPrice.toFixed(2)}</span>
                     </div>
                   </div>
                 </CardContent>
