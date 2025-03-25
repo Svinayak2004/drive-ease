@@ -1,0 +1,53 @@
+# render.yaml
+
+# Database service (MongoDB)
+databases:
+  - name: vehiclevoyage-mongodb
+    databaseName: vehiclevoyage
+    user: vehiclevoyage-user
+    plan: free
+    ipAllowList:
+      - 0.0.0.0/0
+
+# Backend service (Node.js/Express)
+services:
+  - type: web
+    name: vehiclevoyage-backend
+    env: node
+    plan: free
+    region: singapore # or your preferred region
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: PORT
+        value: 3000
+      - key: MONGODB_URI
+        fromDatabase:
+          name: vehiclevoyage-mongodb
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: RAZORPAY_KEY_ID
+        value: rzp_test_W3hBGuMr50waj6
+      - key: RAZORPAY_KEY_SECRET
+        value: 2sf9YA2E99M0XigSH2GaAtwL
+    healthCheckPath: /api/health
+
+# Frontend service (Vite/React)
+  - type: web
+    name: vehiclevoyage-frontend
+    env: node
+    plan: free
+    region: singapore # should match backend region
+    buildCommand: npm install && npm run build
+    startCommand: npm run preview
+    staticPublishPath: ./dist
+    envVars:
+      - key: VITE_API_BASE_URL
+        value: https://vehiclevoyage-backend.onrender.com
+      - key: VITE_RAZORPAY_KEY_ID
+        value: rzp_test_W3hBGuMr50waj6
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
