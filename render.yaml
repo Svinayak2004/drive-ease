@@ -6,8 +6,7 @@ databases:
     databaseName: vehiclevoyage
     user: vehiclevoyage-user
     plan: free
-    ipAllowList:
-      - 0.0.0.0/0
+ 
 
 # Backend service (Node.js/Express)
 services:
