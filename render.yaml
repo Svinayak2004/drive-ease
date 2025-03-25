@@ -6,8 +6,7 @@ databases:
     databaseName: vehiclevoyage
     user: vehiclevoyage_admin  # Valid MongoDB username format
     plan: free
-    ipAllowList:
-      - 0.0.0.0/0
+
 
 # Backend service (Node.js/Express)
 services:
