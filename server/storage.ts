@@ -1,226 +1,422 @@
-import { users, vehicles, bookings, type User, type InsertUser, type Vehicle, type InsertVehicle, type Booking, type InsertBooking } from "@shared/schema";
+import { type User, type InsertUser, type Vehicle, type InsertVehicle, type Booking, type InsertBooking } from "@shared/schema";
 import session from "express-session";
-import createMemoryStore from "memorystore";
+import mongoose from 'mongoose';
+import { UserModel, VehicleModel, BookingModel, sessionStore, IUser, IVehicle, IBooking, connectToDatabase } from './db';
 
-const MemoryStore = createMemoryStore(session);
+// Connect to MongoDB
+connectToDatabase();
 
 export interface IStorage {
   // User methods
-  getUser(id: number): Promise<User | undefined>;
+  getUser(id: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
   
   // Vehicle methods
-  getVehicle(id: number): Promise<Vehicle | undefined>;
+  getVehicle(id: string): Promise<Vehicle | undefined>;
   getVehicles(type?: string): Promise<Vehicle[]>;
   createVehicle(vehicle: InsertVehicle): Promise<Vehicle>;
-  updateVehicleAvailability(id: number, available: boolean): Promise<Vehicle | undefined>;
+  updateVehicleAvailability(id: string, available: boolean): Promise<Vehicle | undefined>;
   
   // Booking methods
-  getBooking(id: number): Promise<Booking | undefined>;
-  getBookingsByUser(userId: number): Promise<Booking[]>;
+  getBooking(id: string): Promise<Booking | undefined>;
+  getBookingsByUser(userId: string): Promise<Booking[]>;
   createBooking(booking: InsertBooking): Promise<Booking>;
-  updateBookingStatus(id: number, status: string, paymentIntentId?: string): Promise<Booking | undefined>;
+  updateBookingStatus(id: string, status: string, paymentIntentId?: string): Promise<Booking | undefined>;
   
   // Session store
-  sessionStore: session.SessionStore;
+  sessionStore: session.Store;
+  
+  // Initialize default data
+  initializeDefaultData(): Promise<void>;
 }
 
-export class MemStorage implements IStorage {
-  private users: Map<number, User>;
-  private vehicles: Map<number, Vehicle>;
-  private bookings: Map<number, Booking>;
-  sessionStore: session.SessionStore;
+export class MongoDBStorage implements IStorage {
+  sessionStore: session.Store;
   
-  private userIdCounter: number;
-  private vehicleIdCounter: number;
-  private bookingIdCounter: number;
-
   constructor() {
-    this.users = new Map();
-    this.vehicles = new Map();
-    this.bookings = new Map();
-    this.userIdCounter = 1;
-    this.vehicleIdCounter = 1;
-    this.bookingIdCounter = 1;
-    
-    this.sessionStore = new MemoryStore({
-      checkPeriod: 86400000, // prune expired entries every 24h
-    });
-    
-    // Initialize with some vehicles
-    this.initializeVehicles();
+    this.sessionStore = sessionStore;
   }
 
-  private initializeVehicles() {
-    const vehicles: InsertVehicle[] = [
-      {
-        name: 'Toyota Corolla',
-        type: 'car',
-        pricePerDay: "25",
-        description: 'Comfortable sedan perfect for city driving and short trips.',
-        imageUrl: 'https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80',
-        available: true
-      },
-      {
-        name: 'Honda Civic',
-        type: 'car',
-        pricePerDay: "28",
-        description: 'Reliable and fuel-efficient compact car for everyday use.',
-        imageUrl: 'https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80',
-        available: true
-      },
-      {
-        name: 'Mountain Bike',
-        type: 'bike',
-        pricePerDay: "10",
-        description: 'Perfect for trails and outdoor adventures.',
-        imageUrl: 'https://images.unsplash.com/photo-1558981403-c5f9c76792fa?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80',
-        available: true
-      },
-      {
-        name: 'City Cruiser Bike',
-        type: 'bike',
-        pricePerDay: "8",
-        description: 'Comfortable bike for casual city rides.',
-        imageUrl: 'https://images.unsplash.com/photo-1485965120184-e220f721d03e?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80',
-        available: true
-      },
-      {
-        name: 'Mini Bus (15 seats)',
-        type: 'bus',
-        pricePerDay: "85",
-        description: 'Perfect for small group trips and events.',
-        imageUrl: 'https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80',
-        available: true
-      },
-      {
-        name: 'Shuttle Bus (25 seats)',
-        type: 'bus',
-        pricePerDay: "120",
-        description: 'Ideal for larger groups and campus events.',
-        imageUrl: 'https://images.unsplash.com/photo-1570125909232-eb263c188f7e?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80',
-        available: true
+  // Initialize default data (vehicles)
+  async initializeDefaultData(): Promise<void> {
+    // Check if vehicles already exist
+    const vehicleCount = await VehicleModel.countDocuments();
+    if (vehicleCount === 0) {
+      console.log('Initializing default vehicles...');
+      const defaultVehicles: InsertVehicle[] = [
+        {
+          name: 'Toyota Corolla',
+          type: 'car',
+          pricePerDay: "25",
+          description: 'Comfortable sedan perfect for city driving and short trips.',
+          imageUrl: 'https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80',
+          available: true
+        },
+        {
+          name: 'Honda Civic',
+          type: 'car',
+          pricePerDay: "28",
+          description: 'Reliable and fuel-efficient compact car for everyday use.',
+          imageUrl: 'https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80',
+          available: true
+        },
+        {
+          name: 'Mountain Bike',
+          type: 'bike',
+          pricePerDay: "10",
+          description: 'Perfect for trails and outdoor adventures.',
+          imageUrl: 'https://images.unsplash.com/photo-1558981403-c5f9c76792fa?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80',
+          available: true
+        },
+        {
+          name: 'City Cruiser Bike',
+          type: 'bike',
+          pricePerDay: "8",
+          description: 'Comfortable bike for casual city rides.',
+          imageUrl: 'https://images.unsplash.com/photo-1485965120184-e220f721d03e?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80',
+          available: true
+        },
+        {
+          name: 'Mini Bus (15 seats)',
+          type: 'bus',
+          pricePerDay: "85",
+          description: 'Perfect for small group trips and events.',
+          imageUrl: 'https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80',
+          available: true
+        },
+        {
+          name: 'Shuttle Bus (25 seats)',
+          type: 'bus',
+          pricePerDay: "120",
+          description: 'Ideal for larger groups and campus events.',
+          imageUrl: 'https://images.unsplash.com/photo-1570125909232-eb263c188f7e?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80',
+          available: true
+        }
+      ];
+
+      // Create the default vehicles
+      for (const vehicle of defaultVehicles) {
+        await this.createVehicle(vehicle);
       }
-    ];
-    
-    vehicles.forEach(vehicle => this.createVehicle(vehicle));
+      console.log('Default vehicles created successfully');
+    }
   }
 
   // User methods
-  async getUser(id: number): Promise<User | undefined> {
-    return this.users.get(id);
+  async getUser(id: string): Promise<User | undefined> {
+    try {
+      const user = await UserModel.findById(id).lean();
+      if (!user) return undefined;
+      
+      // Convert MongoDB document to User type
+      return {
+        id: user._id.toString(),
+        username: user.username,
+        password: user.password,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        phoneNumber: user.phoneNumber,
+      };
+    } catch (error) {
+      console.error('Error getting user:', error);
+      return undefined;
+    }
   }
 
   async getUserByUsername(username: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(
-      (user) => user.username === username
-    );
+    try {
+      const user = await UserModel.findOne({ username }).lean();
+      if (!user) return undefined;
+      
+      return {
+        id: user._id.toString(),
+        username: user.username,
+        password: user.password,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        phoneNumber: user.phoneNumber,
+      };
+    } catch (error) {
+      console.error('Error getting user by username:', error);
+      return undefined;
+    }
   }
   
   async getUserByEmail(email: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(
-      (user) => user.email === email
-    );
+    try {
+      const user = await UserModel.findOne({ email }).lean();
+      if (!user) return undefined;
+      
+      return {
+        id: user._id.toString(),
+        username: user.username,
+        password: user.password,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        phoneNumber: user.phoneNumber,
+      };
+    } catch (error) {
+      console.error('Error getting user by email:', error);
+      return undefined;
+    }
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {
-    const id = this.userIdCounter++;
-    // Ensure phoneNumber is always a string or null, not undefined
-    const user: User = { 
-      ...insertUser, 
-      id,
-      phoneNumber: insertUser.phoneNumber || null 
-    };
-    this.users.set(id, user);
-    return user;
+    try {
+      const newUser = new UserModel({
+        username: insertUser.username,
+        password: insertUser.password,
+        email: insertUser.email,
+        firstName: insertUser.firstName,
+        lastName: insertUser.lastName,
+        phoneNumber: insertUser.phoneNumber || null,
+      });
+      
+      const savedUser = await newUser.save();
+      
+      return {
+        id: savedUser._id.toString(),
+        username: savedUser.username,
+        password: savedUser.password,
+        email: savedUser.email,
+        firstName: savedUser.firstName,
+        lastName: savedUser.lastName,
+        phoneNumber: savedUser.phoneNumber,
+      };
+    } catch (error) {
+      console.error('Error creating user:', error);
+      throw error;
+    }
   }
   
   // Vehicle methods
-  async getVehicle(id: number): Promise<Vehicle | undefined> {
-    return this.vehicles.get(id);
+  async getVehicle(id: string): Promise<Vehicle | undefined> {
+    try {
+      const vehicle = await VehicleModel.findById(id).lean();
+      if (!vehicle) return undefined;
+      
+      return {
+        id: vehicle._id.toString(),
+        name: vehicle.name,
+        type: vehicle.type,
+        pricePerDay: vehicle.pricePerDay,
+        description: vehicle.description,
+        imageUrl: vehicle.imageUrl,
+        available: vehicle.available,
+      };
+    } catch (error) {
+      console.error('Error getting vehicle:', error);
+      return undefined;
+    }
   }
   
   async getVehicles(type?: string): Promise<Vehicle[]> {
-    const allVehicles = Array.from(this.vehicles.values());
-    if (type) {
-      return allVehicles.filter(vehicle => vehicle.type === type);
+    try {
+      const query = type ? { type } : {};
+      const vehicles = await VehicleModel.find(query).lean();
+      
+      return vehicles.map(vehicle => ({
+        id: vehicle._id.toString(),
+        name: vehicle.name,
+        type: vehicle.type,
+        pricePerDay: vehicle.pricePerDay,
+        description: vehicle.description,
+        imageUrl: vehicle.imageUrl,
+        available: vehicle.available,
+      }));
+    } catch (error) {
+      console.error('Error getting vehicles:', error);
+      return [];
     }
-    return allVehicles;
   }
   
   async createVehicle(insertVehicle: InsertVehicle): Promise<Vehicle> {
-    const id = this.vehicleIdCounter++;
-    // Ensure that available is always a boolean
-    const vehicle: Vehicle = { 
-      ...insertVehicle, 
-      id,
-      available: insertVehicle.available === undefined ? true : Boolean(insertVehicle.available)
-    };
-    this.vehicles.set(id, vehicle);
-    return vehicle;
+    try {
+      const newVehicle = new VehicleModel({
+        name: insertVehicle.name,
+        type: insertVehicle.type,
+        pricePerDay: insertVehicle.pricePerDay,
+        description: insertVehicle.description,
+        imageUrl: insertVehicle.imageUrl,
+        available: insertVehicle.available === undefined ? true : Boolean(insertVehicle.available),
+      });
+      
+      const savedVehicle = await newVehicle.save();
+      
+      return {
+        id: savedVehicle._id.toString(),
+        name: savedVehicle.name,
+        type: savedVehicle.type,
+        pricePerDay: savedVehicle.pricePerDay,
+        description: savedVehicle.description,
+        imageUrl: savedVehicle.imageUrl,
+        available: savedVehicle.available,
+      };
+    } catch (error) {
+      console.error('Error creating vehicle:', error);
+      throw error;
+    }
   }
   
-  async updateVehicleAvailability(id: number, available: boolean): Promise<Vehicle | undefined> {
-    const vehicle = this.vehicles.get(id);
-    if (!vehicle) return undefined;
-    
-    const updatedVehicle = { ...vehicle, available };
-    this.vehicles.set(id, updatedVehicle);
-    return updatedVehicle;
+  async updateVehicleAvailability(id: string, available: boolean): Promise<Vehicle | undefined> {
+    try {
+      const updatedVehicle = await VehicleModel.findByIdAndUpdate(
+        id,
+        { available },
+        { new: true }
+      ).lean();
+      
+      if (!updatedVehicle) return undefined;
+      
+      return {
+        id: updatedVehicle._id.toString(),
+        name: updatedVehicle.name,
+        type: updatedVehicle.type,
+        pricePerDay: updatedVehicle.pricePerDay,
+        description: updatedVehicle.description,
+        imageUrl: updatedVehicle.imageUrl,
+        available: updatedVehicle.available,
+      };
+    } catch (error) {
+      console.error('Error updating vehicle availability:', error);
+      return undefined;
+    }
   }
   
   // Booking methods
-  async getBooking(id: number): Promise<Booking | undefined> {
-    return this.bookings.get(id);
+  async getBooking(id: string): Promise<Booking | undefined> {
+    try {
+      const booking = await BookingModel.findById(id).lean();
+      if (!booking) return undefined;
+      
+      return {
+        id: booking._id.toString(),
+        userId: booking.userId.toString(),
+        vehicleId: booking.vehicleId.toString(),
+        startDate: booking.startDate,
+        endDate: booking.endDate,
+        includeDriver: booking.includeDriver,
+        totalPrice: booking.totalPrice,
+        paymentIntentId: booking.paymentIntentId,
+        status: booking.status,
+        createdAt: booking.createdAt,
+      };
+    } catch (error) {
+      console.error('Error getting booking:', error);
+      return undefined;
+    }
   }
   
-  async getBookingsByUser(userId: number): Promise<Booking[]> {
-    return Array.from(this.bookings.values()).filter(
-      booking => booking.userId === userId
-    );
+  async getBookingsByUser(userId: string): Promise<Booking[]> {
+    try {
+      const bookings = await BookingModel.find({ userId }).lean();
+      
+      return bookings.map(booking => ({
+        id: booking._id.toString(),
+        userId: booking.userId.toString(),
+        vehicleId: booking.vehicleId.toString(),
+        startDate: booking.startDate,
+        endDate: booking.endDate,
+        includeDriver: booking.includeDriver,
+        totalPrice: booking.totalPrice,
+        paymentIntentId: booking.paymentIntentId,
+        status: booking.status,
+        createdAt: booking.createdAt,
+      }));
+    } catch (error) {
+      console.error('Error getting bookings by user:', error);
+      return [];
+    }
   }
   
   async createBooking(insertBooking: InsertBooking): Promise<Booking> {
-    const id = this.bookingIdCounter++;
-    const now = new Date();
-    
-    // Create booking with explicit type conversion to ensure proper types
-    const booking: Booking = { 
-      id, 
-      userId: Number(insertBooking.userId),
-      vehicleId: Number(insertBooking.vehicleId),
-      startDate: insertBooking.startDate instanceof Date 
-        ? insertBooking.startDate 
-        : new Date(insertBooking.startDate),
-      endDate: insertBooking.endDate instanceof Date 
-        ? insertBooking.endDate 
-        : new Date(insertBooking.endDate),
-      includeDriver: insertBooking.includeDriver === true,
-      totalPrice: String(insertBooking.totalPrice),
-      paymentIntentId: null, 
-      status: 'pending',
-      createdAt: now
-    };
-    
-    console.log("Creating booking in storage:", booking);
-    this.bookings.set(id, booking);
-    return booking;
+    try {
+      console.log('Creating booking in MongoDB:', insertBooking);
+      
+      // Convert string IDs to ObjectIds if needed
+      const userId = typeof insertBooking.userId === 'string' 
+        ? new mongoose.Types.ObjectId(insertBooking.userId)
+        : insertBooking.userId;
+        
+      const vehicleId = typeof insertBooking.vehicleId === 'string'
+        ? new mongoose.Types.ObjectId(insertBooking.vehicleId)
+        : insertBooking.vehicleId;
+      
+      const newBooking = new BookingModel({
+        userId,
+        vehicleId,
+        startDate: insertBooking.startDate instanceof Date 
+          ? insertBooking.startDate 
+          : new Date(insertBooking.startDate),
+        endDate: insertBooking.endDate instanceof Date 
+          ? insertBooking.endDate 
+          : new Date(insertBooking.endDate),
+        includeDriver: insertBooking.includeDriver === true,
+        totalPrice: String(insertBooking.totalPrice),
+        paymentIntentId: null,
+        status: 'pending',
+        createdAt: new Date()
+      });
+      
+      const savedBooking = await newBooking.save();
+      console.log('Booking saved in MongoDB:', savedBooking);
+      
+      return {
+        id: savedBooking._id.toString(),
+        userId: savedBooking.userId.toString(),
+        vehicleId: savedBooking.vehicleId.toString(),
+        startDate: savedBooking.startDate,
+        endDate: savedBooking.endDate,
+        includeDriver: savedBooking.includeDriver,
+        totalPrice: savedBooking.totalPrice,
+        paymentIntentId: savedBooking.paymentIntentId,
+        status: savedBooking.status,
+        createdAt: savedBooking.createdAt,
+      };
+    } catch (error) {
+      console.error('Error creating booking:', error);
+      throw error;
+    }
   }
   
-  async updateBookingStatus(id: number, status: string, paymentIntentId?: string): Promise<Booking | undefined> {
-    const booking = this.bookings.get(id);
-    if (!booking) return undefined;
-    
-    const updatedBooking = { 
-      ...booking, 
-      status,
-      ...(paymentIntentId ? { paymentIntentId } : {})
-    };
-    this.bookings.set(id, updatedBooking);
-    return updatedBooking;
+  async updateBookingStatus(id: string, status: string, paymentIntentId?: string): Promise<Booking | undefined> {
+    try {
+      const updateData: any = { status };
+      if (paymentIntentId) {
+        updateData.paymentIntentId = paymentIntentId;
+      }
+      
+      const updatedBooking = await BookingModel.findByIdAndUpdate(
+        id,
+        updateData,
+        { new: true }
+      ).lean();
+      
+      if (!updatedBooking) return undefined;
+      
+      return {
+        id: updatedBooking._id.toString(),
+        userId: updatedBooking.userId.toString(),
+        vehicleId: updatedBooking.vehicleId.toString(),
+        startDate: updatedBooking.startDate,
+        endDate: updatedBooking.endDate,
+        includeDriver: updatedBooking.includeDriver,
+        totalPrice: updatedBooking.totalPrice,
+        paymentIntentId: updatedBooking.paymentIntentId,
+        status: updatedBooking.status,
+        createdAt: updatedBooking.createdAt,
+      };
+    } catch (error) {
+      console.error('Error updating booking status:', error);
+      return undefined;
+    }
   }
 }
 
-export const storage = new MemStorage();
+// Export singleton instance
+export const storage = new MongoDBStorage();
