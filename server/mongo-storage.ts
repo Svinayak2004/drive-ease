@@ -38,7 +38,7 @@ export class MongoStorage implements IStorage {
   async connect(): Promise<void> {
     try {
       if (mongoose.connection.readyState !== 1) {
-        await mongoose.connect("mongodb+srv://svinayak2004:Suryawanshi%402004@cluster0.lz7si.mongodb.net/car-rental")
+        await mongoose.connect("mongodb+srv://svinayak2004:Suryawanshi%402004@cluster0.lz7si.mongodb.net/car-rental?retryWrites=true&w=majority")
         console.log('Connected to MongoDB database');
       }
     } catch (error) {

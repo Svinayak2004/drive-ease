@@ -2,12 +2,12 @@ import mongoose from 'mongoose';
 
 // MongoDB connection string - using MongoDB Atlas free tier
 // Replace this with your own MongoDB URI when in production
-let MONGODB_URI = "mongodb+srv://svinayak2004:Suryawanshi%402004@cluster0.lz7si.mongodb.net/car-rental";
+let MONGODB_URI = "mongodb+srv://svinayak2004:Suryawanshi%402004@cluster0.lz7si.mongodb.net/car-rental?retryWrites=true&w=majority";
 
 // If no valid URI is provided, use a fallback for development
 if (!MONGODB_URI || !MONGODB_URI.startsWith('mongodb')) {
   console.warn('No valid MongoDB URI provided. Using in-memory MongoDB for development.');
-  MONGODB_URI = 'mongodb+srv://svinayak2004:Suryawanshi%402004@cluster0.lz7si.mongodb.net/car-rental';
+  MONGODB_URI = 'mongodb+srv://svinayak2004:Suryawanshi%402004@cluster0.lz7si.mongodb.net/car-rental?retryWrites=true&w=majority';
 }
 
 // Create a MongoDB connection
@@ -20,7 +20,7 @@ export async function connectToDatabase() {
     console.error('❌ MongoDB connection error:', error);
     
     // Instead of exiting, we'll allow the app to continue with in-memory functionality
-    if (MONGODB_URI === 'mongodb+srv://svinayak2004:Suryawanshi%402004@cluster0.lz7si.mongodb.net/car-rental') {
+    if (MONGODB_URI === 'mongodb+srv://svinayak2004:Suryawanshi%402004@cluster0.lz7si.mongodb.net/car-rental?retryWrites=true&w=majority') {
       console.log('Using in-memory storage instead of MongoDB');
       return false;
     }
