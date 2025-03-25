@@ -15,6 +15,11 @@ declare global {
 
 const scryptAsync = promisify(scrypt);
 
+// Environment variables
+const SESSION_SECRET = process.env.SESSION_SECRET || process.env.SESSION_SECRET || "fallback-secret-key";
+const COOKIE_SECURE = process.env.NODE_ENV === "production";
+const SAME_SITE = process.env.NODE_ENV === "production" ? "none" : "lax";
+
 async function hashPassword(password: string) {
   const salt = randomBytes(16).toString("hex");
   const buf = (await scryptAsync(password, salt, 64)) as Buffer;
@@ -30,58 +35,88 @@ async function comparePasswords(supplied: string, stored: string) {
 
 export function setupAuth(app: Express) {
   const sessionSettings: session.SessionOptions = {
-    secret: process.env.SESSION_SECRET || "student-car-rental-secret",
+    secret: SESSION_SECRET,
     resave: false,
     saveUninitialized: false,
     store: storage.sessionStore,
     cookie: {
       maxAge: 24 * 60 * 60 * 1000, // 24 hours
+      secure: COOKIE_SECURE, // true in production
+      sameSite: SAME_SITE, // 'none' in production for cross-site
+      httpOnly: true,
+      domain: process.env.COOKIE_DOMAIN || undefined
     }
   };
 
-  app.set("trust proxy", 1);
+  // Trust first proxy in production
+  if (process.env.NODE_ENV === "production") {
+    app.set("trust proxy", 1);
+  }
+
   app.use(session(sessionSettings));
   app.use(passport.initialize());
   app.use(passport.session());
 
   passport.use(
-    new LocalStrategy(async (username, password, done) => {
-      // Try to find user by username first
-      let user = await storage.getUserByUsername(username);
-      
-      // If not found, try with email
-      if (!user) {
-        user = await storage.getUserByEmail(username);
+    new LocalStrategy(
+      {
+        usernameField: "usernameOrEmail", // Allow both username and email
+        passwordField: "password"
+      },
+      async (usernameOrEmail, password, done) => {
+        try {
+          // Try to find user by username first
+          let user = await storage.getUserByUsername(usernameOrEmail);
+          
+          // If not found, try with email
+          if (!user) {
+            user = await storage.getUserByEmail(usernameOrEmail);
+          }
+          
+          if (!user || !(await comparePasswords(password, user.password))) {
+            return done(null, false, { message: "Invalid credentials" });
+          }
+          return done(null, user);
+        } catch (error) {
+          return done(error);
+        }
       }
-      
-      if (!user || !(await comparePasswords(password, user.password))) {
-        return done(null, false);
-      } else {
-        return done(null, user);
-      }
-    }),
+    )
   );
 
-  passport.serializeUser((user, done) => done(null, user.id));
-  passport.deserializeUser(async (id: number, done) => {
-    const user = await storage.getUser(id);
-    done(null, user);
+  passport.serializeUser((user, done) => {
+    done(null, user.id);
   });
 
-  app.post("/api/register", async (req, res, next) => {
-    // Check if username exists
-    const existingUsername = await storage.getUserByUsername(req.body.username);
-    if (existingUsername) {
-      return res.status(400).json({ message: "Username already exists" });
-    }
-    
-    // Check if email exists
-    const existingEmail = await storage.getUserByEmail(req.body.email);
-    if (existingEmail) {
-      return res.status(400).json({ message: "Email already exists" });
-    }
-
+  passport.deserializeUser(async (id: number, done) => {
     try {
+      const user = await storage.getUser(id);
+      done(null, user);
+    } catch (error) {
+      done(error);
+    }
+  });
+
+  // Registration endpoint
+  app.post("/api/register", async (req, res, next) => {
+    try {
+      // Validate required fields
+      if (!req.body.username || !req.body.email || !req.body.password) {
+        return res.status(400).json({ message: "Missing required fields" });
+      }
+
+      // Check if username exists
+      const existingUsername = await storage.getUserByUsername(req.body.username);
+      if (existingUsername) {
+        return res.status(400).json({ message: "Username already exists" });
+      }
+      
+      // Check if email exists
+      const existingEmail = await storage.getUserByEmail(req.body.email);
+      if (existingEmail) {
+        return res.status(400).json({ message: "Email already exists" });
+      }
+
       const user = await storage.createUser({
         ...req.body,
         password: await hashPassword(req.body.password),
@@ -89,31 +124,45 @@ export function setupAuth(app: Express) {
 
       req.login(user, (err) => {
         if (err) return next(err);
-        // Don't send password back to client
         const { password, ...userWithoutPassword } = user;
         res.status(201).json(userWithoutPassword);
       });
     } catch (error) {
+      console.error("Registration error:", error);
       res.status(500).json({ message: "Error registering user" });
     }
   });
 
-  app.post("/api/login", passport.authenticate("local"), (req, res) => {
-    // Don't send password back to client
-    const { password, ...userWithoutPassword } = req.user as SelectUser;
-    res.status(200).json(userWithoutPassword);
+  // Login endpoint
+  app.post("/api/login", (req, res, next) => {
+    passport.authenticate("local", (err, user, info) => {
+      if (err) return next(err);
+      if (!user) {
+        return res.status(401).json({ message: info?.message || "Login failed" });
+      }
+      req.login(user, (err) => {
+        if (err) return next(err);
+        const { password, ...userWithoutPassword } = user;
+        return res.json(userWithoutPassword);
+      });
+    })(req, res, next);
   });
 
+  // Logout endpoint
   app.post("/api/logout", (req, res, next) => {
     req.logout((err) => {
       if (err) return next(err);
-      res.sendStatus(200);
+      req.session.destroy((err) => {
+        if (err) return next(err);
+        res.clearCookie("connect.sid");
+        res.sendStatus(200);
+      });
     });
   });
 
+  // Current user endpoint
   app.get("/api/user", (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
-    // Don't send password back to client
     const { password, ...userWithoutPassword } = req.user as SelectUser;
     res.json(userWithoutPassword);
   });

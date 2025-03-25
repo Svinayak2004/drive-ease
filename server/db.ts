@@ -1,34 +1,45 @@
 import mongoose from 'mongoose';
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://svinayak2004:Suryawanshi%402004@cluster0.lz7si.mongodb.net/car-rental?retryWrites=true&w=majority';
 
-// MongoDB connection string - using MongoDB Atlas free tier
-// Replace this with your own MongoDB URI when in production
-let MONGODB_URI = "mongodb+srv://svinayak2004:Suryawanshi%402004@cluster0.lz7si.mongodb.net/car-rental?retryWrites=true&w=majority";
+// Connection caching for serverless environments
+let cached = (global as any).mongoose;
 
-// If no valid URI is provided, use a fallback for development
-if (!MONGODB_URI || !MONGODB_URI.startsWith('mongodb')) {
-  console.warn('No valid MongoDB URI provided. Using in-memory MongoDB for development.');
-  MONGODB_URI = 'mongodb+srv://svinayak2004:Suryawanshi%402004@cluster0.lz7si.mongodb.net/car-rental?retryWrites=true&w=majority';
+if (!cached) {
+  cached = (global as any).mongoose = { conn: null, promise: null };
 }
 
-// Create a MongoDB connection
 export async function connectToDatabase() {
-  try {
-    await mongoose.connect(MONGODB_URI);
-    console.log('🚀 Connected to MongoDB');
-    return true;
-  } catch (error) {
-    console.error('❌ MongoDB connection error:', error);
-    
-    // Instead of exiting, we'll allow the app to continue with in-memory functionality
-    if (MONGODB_URI === 'mongodb+srv://svinayak2004:Suryawanshi%402004@cluster0.lz7si.mongodb.net/car-rental?retryWrites=true&w=majority') {
-      console.log('Using in-memory storage instead of MongoDB');
-      return false;
-    }
-    
-    // Only exit if we're trying to use a real MongoDB connection
-    console.log('MongoDB connection failed. Setting up application with in-memory database.');
-    return false;
+  if (cached.conn) {
+    return cached.conn;
   }
+
+  if (!MONGODB_URI) {
+    throw new Error('Please define the MONGODB_URI environment variable');
+  }
+
+  if (!cached.promise) {
+    const opts = {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+      bufferCommands: false,
+      serverSelectionTimeoutMS: 5000,
+    };
+
+    cached.promise = mongoose.connect(MONGODB_URI, opts).then((mongoose) => {
+      console.log('🚀 Connected to MongoDB');
+      return mongoose;
+    });
+  }
+
+  try {
+    cached.conn = await cached.promise;
+  } catch (error) {
+    cached.promise = null;
+    console.error('❌ MongoDB connection error:', error);
+    throw error;
+  }
+
+  return cached.conn;
 }
 
 // Create MongoDB models based on our schema
