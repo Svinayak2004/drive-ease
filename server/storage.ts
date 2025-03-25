@@ -45,7 +45,7 @@ export class MongoDBStorage implements IStorage {
     try {
       if (mongoose.connection.readyState !== 1) {
         // Check if we have a valid MongoDB URI
-        const uri = "mongodb+srv://svinayak2004:Suryawanshi%402004@cluster0.lz7si.mongodb.net/car-rental";
+        const uri = process.env.MONGODB_URI;
         
         // Validate the URI format
         if (uri && !uri.startsWith('mongodb://') && !uri.startsWith('mongodb+srv://')) {
@@ -55,9 +55,11 @@ export class MongoDBStorage implements IStorage {
         }
         
         // Use default local MongoDB if no valid URI is provided
-        const validUri = uri || 'mongodb+srv://svinayak2004:Suryawanshi%402004@cluster0.lz7si.mongodb.net/car-rental';
         
-        await mongoose.connect(validUri);
+        if (!process.env.MONGODB_URI) {
+          throw new Error('MONGODB_URI is not defined in the environment variables');
+        }
+        await mongoose.connect(process.env.MONGODB_URI);
         console.log('Connected to MongoDB successfully');
         this.connected = true;
         await this.initializeDefaultData();
@@ -224,8 +226,7 @@ export class MongoDBStorage implements IStorage {
         email: user.email,
         firstName: user.firstName,
         lastName: user.lastName,
-        phoneNumber: user.phoneNumber,
-      };
+        phoneNumber: user.phoneNumber || "",};
     } catch (error) {
       console.error('Error getting user by username:', error);
       return undefined;
@@ -244,7 +245,7 @@ export class MongoDBStorage implements IStorage {
         email: user.email,
         firstName: user.firstName,
         lastName: user.lastName,
-        phoneNumber: user.phoneNumber,
+        phoneNumber: user.phoneNumber || "",
       };
     } catch (error) {
       console.error('Error getting user by email:', error);
@@ -263,7 +264,7 @@ export class MongoDBStorage implements IStorage {
         phoneNumber: insertUser.phoneNumber || null,
       });
       
-      const savedUser = await newUser.save();
+      const savedUser = await newUser.save() as mongoose.Document & User;
       
       return {
         id: savedUser._id.toString(),
