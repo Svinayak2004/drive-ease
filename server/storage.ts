@@ -44,7 +44,20 @@ export class MongoDBStorage implements IStorage {
   private async tryConnect() {
     try {
       if (mongoose.connection.readyState !== 1) {
-        await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/car-rental');
+        // Check if we have a valid MongoDB URI
+        const uri = process.env.MONGODB_URI;
+        
+        // Validate the URI format
+        if (uri && !uri.startsWith('mongodb://') && !uri.startsWith('mongodb+srv://')) {
+          console.error('Invalid MongoDB URI format. URI should start with mongodb:// or mongodb+srv://');
+          this.connected = false;
+          return;
+        }
+        
+        // Use default local MongoDB if no valid URI is provided
+        const validUri = uri || 'mongodb://localhost:27017/car-rental';
+        
+        await mongoose.connect(validUri);
         console.log('Connected to MongoDB successfully');
         this.connected = true;
         await this.initializeDefaultData();
