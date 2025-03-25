@@ -79,7 +79,7 @@ export class MongoDBStorage implements IStorage {
       email: obj.email,
       firstName: obj.firstName,
       lastName: obj.lastName,
-      phoneNumber: obj.phoneNumber || null
+      phoneNumber: obj.phoneNumber === undefined ? null : obj.phoneNumber
     };
   }
   
@@ -204,7 +204,7 @@ export class MongoDBStorage implements IStorage {
         email: user.email,
         firstName: user.firstName,
         lastName: user.lastName,
-        phoneNumber: user.phoneNumber,
+        phoneNumber: user.phoneNumber === undefined ? null : user.phoneNumber,
       };
     } catch (error) {
       console.error('Error getting user:', error);
