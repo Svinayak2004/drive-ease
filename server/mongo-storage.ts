@@ -42,7 +42,7 @@ export class MongoStorage implements IStorage {
         console.log('Connected to MongoDB database');
       }
     } catch (error) {
-      console.error('MongoDB connection error', error)
+      console.error('MongoDB connection error:', error)
       throw error;
     }
   }
