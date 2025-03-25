@@ -86,15 +86,17 @@ export default function BookingPage() {
   // Create booking mutation
   const createBookingMutation = useMutation({
     mutationFn: async (formData: BookingFormValues) => {
+      // Ensure the booking data is properly formatted for the API
       const bookingData = {
         vehicleId,
         userId: user!.id,
-        startDate: formData.startDate,
-        endDate: formData.endDate,
-        includeDriver: formData.includeDriver,
-        totalPrice
+        startDate: formData.startDate.toISOString(),
+        endDate: formData.endDate.toISOString(),
+        includeDriver: formData.includeDriver || false, // Ensure it's always a boolean
+        totalPrice: totalPrice.toString() // Convert to string as expected by API
       };
       
+      console.log("Sending booking data:", bookingData);
       const res = await apiRequest("POST", "/api/bookings", bookingData);
       return await res.json() as Booking;
     },
@@ -105,10 +107,18 @@ export default function BookingPage() {
       });
       navigate(`/checkout/${booking.id}`);
     },
-    onError: (error: Error) => {
+    onError: (error: any) => {
+      console.error("Booking error:", error);
+      let errorMessage = "Failed to create booking";
+      if (error.response && error.response.data && error.response.data.error) {
+        errorMessage = error.response.data.error;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
       toast({
         title: "Booking failed",
-        description: error.message || "Failed to create booking",
+        description: errorMessage,
         variant: "destructive",
       });
     },

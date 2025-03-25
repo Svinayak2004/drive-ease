@@ -88,16 +88,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
     
     try {
-      // Validate booking data
-      const bookingData = insertBookingSchema.parse({
-        ...req.body,
+      console.log("Received booking request:", req.body);
+      
+      // Make sure all required fields are present
+      if (!req.body.vehicleId || !req.body.startDate || !req.body.endDate || !req.body.totalPrice) {
+        return res.status(400).json({ 
+          message: "Missing required booking fields", 
+          error: "All required fields must be provided (vehicleId, startDate, endDate, totalPrice)" 
+        });
+      }
+      
+      // Ensure includeDriver is a boolean
+      const includeDriver = req.body.includeDriver === true || req.body.includeDriver === "true";
+      
+      // Format booking data for API
+      const bookingData = {
         userId: req.user.id,
-      });
+        vehicleId: parseInt(req.body.vehicleId),
+        startDate: new Date(req.body.startDate),
+        endDate: new Date(req.body.endDate),
+        includeDriver: includeDriver,
+        totalPrice: req.body.totalPrice
+      };
+      
+      console.log("Processed booking data:", bookingData);
       
       // Check if vehicle exists and is available
       const vehicle = await storage.getVehicle(bookingData.vehicleId);
-      if (!vehicle || !vehicle.available) {
-        return res.status(400).json({ message: "Vehicle not available" });
+      if (!vehicle) {
+        return res.status(400).json({ message: "Vehicle not found", error: "The requested vehicle does not exist" });
+      }
+      
+      if (!vehicle.available) {
+        return res.status(400).json({ message: "Vehicle not available", error: "The requested vehicle is not available for booking" });
       }
       
       // Create booking
@@ -105,7 +128,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.status(201).json(booking);
     } catch (error) {
-      res.status(500).json({ message: "Error creating booking" });
+      console.error("Booking creation error:", error);
+      res.status(500).json({ message: "Error creating booking", error: String(error) });
     }
   });
 
