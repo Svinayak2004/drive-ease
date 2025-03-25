@@ -92,18 +92,13 @@ export const UserModel = model<IUser>('User', userSchema);
 export const VehicleModel = model<IVehicle>('Vehicle', vehicleSchema);
 export const BookingModel = model<IBooking>('Booking', bookingSchema);
 
-// Session store for MongoDB
+// Session store
 import session from 'express-session';
-import ConnectMongoDBSession from 'connect-mongodb-session';
+import memoryStore from 'memorystore';
 
-const MongoDBStore = ConnectMongoDBSession(session);
+// Create a memory store for development
+const MemoryStore = memoryStore(session);
 
-export const sessionStore = new MongoDBStore({
-  uri: MONGODB_URI,
-  collection: 'sessions',
-  expires: 1000 * 60 * 60 * 24 * 7, // 1 week
-});
-
-sessionStore.on('error', (error) => {
-  console.error('Session store error:', error);
+export const sessionStore = new MemoryStore({
+  checkPeriod: 1000 * 60 * 60 * 24 // 1 day
 });

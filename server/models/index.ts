@@ -35,8 +35,8 @@ export interface BookingDocument extends Document, Omit<Booking, 'id'> {
 }
 
 const BookingSchema = new Schema<BookingDocument>({
-  userId: { type: Number, required: true },
-  vehicleId: { type: Number, required: true },
+  userId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+  vehicleId: { type: Schema.Types.ObjectId, ref: 'Vehicle', required: true },
   startDate: { type: Date, required: true },
   endDate: { type: Date, required: true },
   includeDriver: { type: Boolean, required: true, default: false },

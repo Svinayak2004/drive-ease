@@ -2,6 +2,7 @@ import { pgTable, text, serial, integer, decimal, boolean, timestamp } from "dri
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
+// Define the database tables for PostgreSQL (using Drizzle)
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
   username: text("username").notNull().unique(),
@@ -35,36 +36,68 @@ export const bookings = pgTable("bookings", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
-export const insertUserSchema = createInsertSchema(users).pick({
-  username: true,
-  password: true,
-  email: true,
-  firstName: true,
-  lastName: true,
-  phoneNumber: true,
+// Schema validation for inserts
+export const insertUserSchema = z.object({
+  username: z.string(),
+  password: z.string(),
+  email: z.string().email(),
+  firstName: z.string(),
+  lastName: z.string(),
+  phoneNumber: z.string().optional().nullable(),
 });
 
-export const insertVehicleSchema = createInsertSchema(vehicles).pick({
-  name: true,
-  type: true,
-  pricePerDay: true,
-  description: true,
-  imageUrl: true,
-  available: true,
+export const insertVehicleSchema = z.object({
+  name: z.string(),
+  type: z.string(),
+  pricePerDay: z.string(),
+  description: z.string(),
+  imageUrl: z.string(),
+  available: z.boolean().optional().default(true),
 });
 
-export const insertBookingSchema = createInsertSchema(bookings).pick({
-  userId: true,
-  vehicleId: true,
-  startDate: true,
-  endDate: true,
-  includeDriver: true,
-  totalPrice: true,
+export const insertBookingSchema = z.object({
+  userId: z.string(),
+  vehicleId: z.string(),
+  startDate: z.date(),
+  endDate: z.date(),
+  includeDriver: z.boolean().default(false),
+  totalPrice: z.string(),
 });
+
+// Data types for MongoDB
+export interface User {
+  id: string;
+  username: string;
+  password: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  phoneNumber: string | null;
+}
+
+export interface Vehicle {
+  id: string;
+  name: string;
+  type: string;
+  pricePerDay: string;
+  description: string;
+  imageUrl: string;
+  available: boolean;
+}
+
+export interface Booking {
+  id: string;
+  userId: string;
+  vehicleId: string;
+  startDate: Date;
+  endDate: Date;
+  includeDriver: boolean;
+  totalPrice: string;
+  paymentIntentId: string | null;
+  status: string;
+  createdAt: Date;
+}
 
 export type InsertUser = z.infer<typeof insertUserSchema>;
-export type User = typeof users.$inferSelect;
-export type Vehicle = typeof vehicles.$inferSelect;
 export type InsertVehicle = z.infer<typeof insertVehicleSchema>;
-export type Booking = typeof bookings.$inferSelect;
 export type InsertBooking = z.infer<typeof insertBookingSchema>;

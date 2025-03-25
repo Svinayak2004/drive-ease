@@ -29,7 +29,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get a specific vehicle by ID
   app.get("/api/vehicles/:id", async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = req.params.id;
       const vehicle = await storage.getVehicle(id);
       
       if (!vehicle) {
