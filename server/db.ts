@@ -1,52 +1,12 @@
 import mongoose from 'mongoose';
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://svinayak2004:Suryawanshi%402004@cluster0.lz7si.mongodb.net/car-rental';
+import session from 'express-session';
+import memoryStore from 'memorystore';
+import dotenv from 'dotenv';
 
-// Connection caching for serverless environments
-let cached = (global as any).mongoose;
+dotenv.config();
 
-if (!cached) {
-  cached = (global as any).mongoose = { conn: null, promise: null };
-}
-
-export async function connectToDatabase() {
-  if (cached.conn) {
-    return cached.conn;
-  }
-
-  if (!MONGODB_URI) {
-    throw new Error('Please define the MONGODB_URI environment variable');
-  }
-
-  if (!cached.promise) {
-    const opts = {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-      bufferCommands: false,
-      serverSelectionTimeoutMS: 5000,
-    };
-
-    cached.promise = mongoose.connect(MONGODB_URI, opts).then((mongoose) => {
-      console.log('🚀 Connected to MongoDB');
-      return mongoose;
-    });
-  }
-
-  try {
-    cached.conn = await cached.promise;
-  } catch (error) {
-    cached.promise = null;
-    console.error('❌ MongoDB connection error:', error);
-    throw error;
-  }
-
-  return cached.conn;
-}
-
-// Create MongoDB models based on our schema
-import { Schema, model, Document } from 'mongoose';
-
-// User schema
-export interface IUser extends Document {
+// Enhanced TypeScript Interfaces
+interface IUser extends mongoose.Document {
   username: string;
   password: string;
   email: string;
@@ -55,71 +15,174 @@ export interface IUser extends Document {
   phoneNumber?: string | null;
 }
 
-const userSchema = new Schema<IUser>({
-  username: { type: String, required: true, unique: true },
-  password: { type: String, required: true },
-  email: { type: String, required: true, unique: true },
-  firstName: { type: String, required: true },
-  lastName: { type: String, required: true },
-  phoneNumber: { type: String, default: null }
-});
-
-// Vehicle schema
-export interface IVehicle extends Document {
+interface IVehicle extends mongoose.Document {
   name: string;
   type: string;
-  pricePerDay: string;
+  pricePerDay: number;  // Changed from string to number
   description: string;
   imageUrl: string;
   available: boolean;
 }
 
-const vehicleSchema = new Schema<IVehicle>({
-  name: { type: String, required: true },
-  type: { type: String, required: true },
-  pricePerDay: { type: String, required: true },
-  description: { type: String, required: true },
-  imageUrl: { type: String, required: true },
-  available: { type: Boolean, default: true }
-});
-
-// Booking schema
-export interface IBooking extends Document {
+interface IBooking extends mongoose.Document {
   userId: mongoose.Types.ObjectId;
   vehicleId: mongoose.Types.ObjectId;
   startDate: Date;
   endDate: Date;
   includeDriver: boolean;
-  totalPrice: string;
+  totalPrice: number;  // Changed from string to number
   paymentIntentId: string | null;
-  status: string;
+  status: 'pending' | 'confirmed' | 'cancelled';
   createdAt: Date;
 }
 
-const bookingSchema = new Schema<IBooking>({
-  userId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
-  vehicleId: { type: Schema.Types.ObjectId, ref: 'Vehicle', required: true },
-  startDate: { type: Date, required: true },
-  endDate: { type: Date, required: true },
+// Secure Connection Configuration
+const MONGODB_URI = process.env.MONGODB_URI || 
+  'mongodb+srv://svinayak2004:Suryawanshi%402004@cluster0.lz7si.mongodb.net/car-rental?retryWrites=true&w=majority';
+
+// Connection caching for serverless environments
+let cached = (global as any).mongoose || { conn: null, promise: null };
+
+export async function connectToDatabase() {
+  if (cached.conn) return cached.conn;
+
+  if (!MONGODB_URI) {
+    throw new Error('MONGODB_URI environment variable not configured');
+  }
+
+  const opts: mongoose.ConnectOptions = {
+    serverSelectionTimeoutMS: 10000,
+    socketTimeoutMS: 45000,
+    ssl: true,
+    sslValidate: false,
+    authSource: 'admin',
+    retryWrites: true,
+    w: 'majority'
+  };
+
+  try {
+    cached.promise = mongoose.connect(MONGODB_URI, opts)
+      .then(mongoose => {
+        console.log('🔐 MongoDB Connected with SSL');
+        return mongoose;
+      });
+
+    cached.conn = await cached.promise;
+    return cached.conn;
+  } catch (error) {
+    console.error('❌ MongoDB Connection Error:', error);
+    cached.promise = null;
+    throw error;
+  }
+}
+
+// Enhanced Schemas with Validation
+const userSchema = new mongoose.Schema<IUser>({
+  username: { 
+    type: String, 
+    required: true, 
+    unique: true,
+    trim: true,
+    minlength: 3
+  },
+  password: { 
+    type: String, 
+    required: true,
+    select: false // Never return password in queries
+  },
+  email: {
+    type: String,
+    required: true,
+    unique: true,
+    lowercase: true,
+    match: [/^\S+@\S+\.\S+$/, 'Invalid email format']
+  },
+  firstName: { type: String, required: true, trim: true },
+  lastName: { type: String, required: true, trim: true },
+  phoneNumber: { 
+    type: String, 
+    default: null,
+    match: [/^[0-9]{10}$/, 'Invalid phone number']
+  }
+});
+
+const vehicleSchema = new mongoose.Schema<IVehicle>({
+  name: { type: String, required: true },
+  type: { 
+    type: String, 
+    required: true,
+    enum: ['sedan', 'suv', 'truck', 'hatchback', 'luxury']
+  },
+  pricePerDay: { 
+    type: Number, 
+    required: true,
+    min: [0, 'Price cannot be negative']
+  },
+  description: { type: String, required: true },
+  imageUrl: { 
+    type: String, 
+    required: true,
+    validate: {
+      validator: (url: string) => url.startsWith('http'),
+      message: 'Image URL must be valid'
+    }
+  },
+  available: { type: Boolean, default: true }
+});
+
+const bookingSchema = new mongoose.Schema<IBooking>({
+  userId: { 
+    type: mongoose.Schema.Types.ObjectId, 
+    ref: 'User', 
+    required: true 
+  },
+  vehicleId: { 
+    type: mongoose.Schema.Types.ObjectId, 
+    ref: 'Vehicle', 
+    required: true 
+  },
+  startDate: { 
+    type: Date, 
+    required: true,
+    min: [Date.now, 'Start date cannot be in the past']
+  },
+  endDate: { 
+    type: Date, 
+    required: true,
+    validate: {
+      validator: function(this: IBooking, value: Date) {
+        return value > this.startDate;
+      },
+      message: 'End date must be after start date'
+    }
+  },
   includeDriver: { type: Boolean, default: false },
-  totalPrice: { type: String, required: true },
+  totalPrice: { 
+    type: Number, 
+    required: true,
+    min: [0, 'Price cannot be negative']
+  },
   paymentIntentId: { type: String, default: null },
-  status: { type: String, default: 'pending' },
+  status: { 
+    type: String, 
+    default: 'pending',
+    enum: ['pending', 'confirmed', 'cancelled']
+  },
   createdAt: { type: Date, default: Date.now }
 });
 
-// Export models
-export const UserModel = model<IUser>('User', userSchema);
-export const VehicleModel = model<IVehicle>('Vehicle', vehicleSchema);
-export const BookingModel = model<IBooking>('Booking', bookingSchema);
+// Indexes for better performance
+userSchema.index({ email: 1 });
+vehicleSchema.index({ type: 1, available: 1 });
+bookingSchema.index({ userId: 1, status: 1 });
 
-// Session store
-import session from 'express-session';
-import memoryStore from 'memorystore';
+// Models
+export const UserModel = mongoose.model<IUser>('User', userSchema);
+export const VehicleModel = mongoose.model<IVehicle>('Vehicle', vehicleSchema);
+export const BookingModel = mongoose.model<IBooking>('Booking', bookingSchema);
 
-// Create a memory store for development
+// Session Store Configuration
 const MemoryStore = memoryStore(session);
-
 export const sessionStore = new MemoryStore({
-  checkPeriod: 1000 * 60 * 60 * 24 // 1 day
+  checkPeriod: 86400000 // 1 day in ms
 });
