@@ -123,7 +123,7 @@ export default function AuthModal({ isOpen, onClose, initialTab = "login" }: Aut
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="text-2xl font-bold text-center">
-            {activeTab === "login" ? "Log in to DrivEase" : "Create your account"}
+            {activeTab === "login" ? "Log in to website" : "Create your account"}
           </DialogTitle>
         </DialogHeader>
 

@@ -42,9 +42,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     queryFn: getQueryFn({ on401: "returnNull" }),
   });
 
+  // In the loginMutation
   const loginMutation = useMutation({
     mutationFn: async (credentials: LoginData) => {
-      const res = await apiRequest("POST", "/api/login", credentials);
+      const res = await apiRequest("POST", "/api/login", {
+        username: credentials.username,
+        password: credentials.password
+      });
+      
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.message || "Login failed");
+      }
+      
       return await res.json();
     },
     onSuccess: (user) => {
@@ -57,7 +67,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     onError: (error: Error) => {
       toast({
         title: "Login failed",
-        description: "Invalid username or password",
+        description: error.message || "Invalid username or password",
         variant: "destructive",
       });
     },

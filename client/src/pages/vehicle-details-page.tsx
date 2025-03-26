@@ -112,7 +112,7 @@ export default function VehicleDetailsPage() {
               <div>
                 <h1 className="text-3xl font-bold text-gray-900">{vehicle.name}</h1>
                 <div className="mt-2 flex items-center">
-                  <span className="text-2xl font-bold text-primary">${Number(vehicle.pricePerDay)}</span>
+                  <span className="text-2xl font-bold text-primary">₹{Number(vehicle.pricePerDay)}</span>
                   <span className="text-gray-600 ml-1">/ day</span>
                 </div>
               </div>

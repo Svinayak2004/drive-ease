@@ -57,25 +57,33 @@ export function setupAuth(app: Express) {
   app.use(passport.initialize());
   app.use(passport.session());
 
+  // In the LocalStrategy configuration
   passport.use(
     new LocalStrategy(
       {
-        usernameField: "usernameOrEmail", // Allow both username and email
+        usernameField: "username", // Changed from usernameOrEmail to match frontend
         passwordField: "password"
       },
-      async (usernameOrEmail, password, done) => {
+      async (username, password, done) => {
         try {
-          // Try to find user by username first
-          let user = await storage.getUserByUsername(usernameOrEmail);
+          // First try to find by username
+          let user = await storage.getUserByUsername(username);
           
-          // If not found, try with email
+          // If not found, try by email (optional)
           if (!user) {
-            user = await storage.getUserByEmail(usernameOrEmail);
+            user = await storage.getUserByEmail(username);
           }
           
-          if (!user || !(await comparePasswords(password, user.password))) {
+          if (!user) {
             return done(null, false, { message: "Invalid credentials" });
           }
+
+          // Simplified password comparison
+          const isMatch = await comparePasswords(password, user.password);
+          if (!isMatch) {
+            return done(null, false, { message: "Invalid credentials" });
+          }
+          
           return done(null, user);
         } catch (error) {
           return done(error);
@@ -83,6 +91,22 @@ export function setupAuth(app: Express) {
       }
     )
   );
+
+// Update comparePasswords function
+async function comparePasswords(supplied: string, stored: string) {
+  try {
+    const [hashed, salt] = stored.split('.');
+    const hashedBuf = Buffer.from(hashed, 'hex');
+    const suppliedBuf = (await scryptAsync(supplied, salt, 64)) as Buffer;
+    
+    // Fallback to length check if timingSafeEqual fails
+    return hashedBuf.length === suppliedBuf.length && 
+           timingSafeEqual(hashedBuf, suppliedBuf);
+  } catch (error) {
+    console.error('Password comparison error:', error);
+    return false;
+  }
+}
 
   passport.serializeUser((user, done) => {
     done(null, user.id);

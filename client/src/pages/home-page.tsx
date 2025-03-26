@@ -32,7 +32,7 @@ export default function HomePage() {
           <div className="max-w-7xl mx-auto px-4 py-12 sm:px-6 lg:py-16 lg:px-8 flex flex-col lg:flex-row items-center">
             <div className="lg:w-1/2 lg:pr-12">
               <h1 className="text-3xl md:text-4xl font-bold mb-4">Your Journey, Our Wheels</h1>
-              <p className="text-lg mb-8">Affordable vehicle rentals for students, by students. Choose from cars, bikes, and buses for your next adventure.</p>
+              <p className="text-lg mb-8">Affordable vehicle rentals for people. Choose from cars, bikes, and buses for your next adventure.</p>
               <div className="flex flex-wrap gap-4">
                 <Button 
                   asChild 

@@ -6,8 +6,8 @@ export default function Footer() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
           <div>
-            <h3 className="text-lg font-semibold mb-4">DrivEase</h3>
-            <p className="text-gray-400">Student-run vehicle rental service offering affordable transportation solutions for campus life and beyond.</p>
+            <h3 className="text-lg font-semibold mb-4">VARS vehicle</h3>
+            <p className="text-gray-400">VARS vehicle rental service offering affordable transportation solutions for campus life and beyond.</p>
             <div className="mt-4 flex space-x-4">
               <a href="#" className="text-gray-400 hover:text-white">
                 <i className="fab fa-facebook-f"></i>
@@ -45,22 +45,25 @@ export default function Footer() {
             <ul className="space-y-2 text-gray-400">
               <li className="flex items-start">
                 <i className="fas fa-map-marker-alt mt-1 mr-2"></i>
-                <span>123 University Ave, College Town, ST 12345</span>
+                <span>3rd Floor, Tech Park One
+                      MG Road, Bengaluru – 560001
+                      Karnataka, India
+                </span>
               </li>
               <li className="flex items-start">
                 <i className="fas fa-envelope mt-1 mr-2"></i>
-                <span>info@driveaserentals.com</span>
+                <span> contact@varsvehical.com</span>
               </li>
               <li className="flex items-start">
                 <i className="fas fa-phone mt-1 mr-2"></i>
-                <span>(123) 456-7890</span>
+                <span>+91 80 1234 567</span>
               </li>
             </ul>
           </div>
         </div>
         
         <div className="mt-8 border-t border-gray-700 pt-8 text-center text-gray-400">
-          <p>&copy; {new Date().getFullYear()} DrivEase. All rights reserved. A student project from Engineering University.</p>
+          <p>&copy; {new Date().getFullYear()} VARS. All rights reserved. A student project from Pillai College Of Engineering.</p>
         </div>
       </div>
     </footer>

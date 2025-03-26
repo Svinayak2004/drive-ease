@@ -122,7 +122,7 @@ export default function ConfirmationPage() {
                     
                     <div className="space-y-1">
                       <p className="text-sm text-gray-500">Total Price</p>
-                      <p className="font-medium">${Number(booking.totalPrice).toFixed(2)}</p>
+                      <p className="font-medium">₹{Number(booking.totalPrice).toFixed(2)}</p>
                     </div>
                   </div>
                   
@@ -161,7 +161,7 @@ export default function ConfirmationPage() {
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="text-primary">•</span>
-                    <span>A security deposit of $100 will be held during your rental period.</span>
+                    <span>A security deposit of ₹10000 will be held during your rental period.</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="text-primary">•</span>

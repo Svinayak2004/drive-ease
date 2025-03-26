@@ -359,7 +359,7 @@ export default function BookingPage() {
                   <div className="border-t pt-4">
                     <div className="flex justify-between mb-2">
                       <span className="text-gray-600">Base price</span>
-                      <span>${vehicle.pricePerDay}/day</span>
+                      <span>₹{vehicle.pricePerDay}/day</span>
                     </div>
                     
                     <div className="flex justify-between mb-2">
@@ -382,7 +382,7 @@ export default function BookingPage() {
                   <div className="border-t pt-4">
                     <div className="flex justify-between font-semibold text-lg">
                       <span>Total</span>
-                      <span>${totalPrice.toFixed(2)}</span>
+                      <span>₹{totalPrice.toFixed(2)}</span>
                     </div>
                   </div>
                 </CardContent>
